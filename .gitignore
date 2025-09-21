@@ -1,0 +1,24 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Envs
+.venv/
+venv/
+
+# Outputs
+out/
+web_output/
+oneclick_out/
+uploads/
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tiff
+
+# OS
+.DS_Store
+Thumbs.db
+

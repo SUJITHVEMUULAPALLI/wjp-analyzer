@@ -1,0 +1,25 @@
+﻿[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waterjet-dxf"
+version = "0.1.0"
+description = "DXF validator/analyzer/visualizer/G-code for waterjet"
+requires-python = ">=3.11"
+dependencies = [
+  "ezdxf>=1.3.0",
+  "flask>=3.0.3",
+  "matplotlib>=3.9.0",
+  "numpy>=1.26.4",
+  "opencv-python>=4.10.0",
+  "pillow>=10.4.0",
+  "pydantic>=2.7.0",
+  "rich>=13.7.1",
+  "rtree>=1.2.0",
+  "scikit-image>=0.24.0",
+  "shapely>=2.0.2",
+]
+
+[tool.setuptools.packages.find]
+where = [""]

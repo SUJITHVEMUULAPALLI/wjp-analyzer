@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Analysis Results</h2>
+    <p>Analysis ID: <code>{{ analysis_id }}</code></p>
+
+    <div class="metrics-grid">
+        <div class="metric">
+            <span class="metric-label">Material</span>
+            <span>{{ report.material.name }} ({{ report.material.thickness_mm }} mm)</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Kerf</span>
+            <span>{{ report.kerf_mm }} mm</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Outer Length</span>
+            <span>{{ report.metrics.length_outer_mm | round(1) }} mm</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Internal Length</span>
+            <span>{{ report.metrics.length_internal_mm | round(1) }} mm</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Pierces</span>
+            <span>{{ report.metrics.pierces }}</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Est. Time</span>
+            <span>{{ report.metrics.est_time_min | round(1) }} min</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Est. Cost</span>
+            <span>₹ {{ report.metrics.cost_inr | round(0) }}</span>
+        </div>
+    </div>
+
+    <div class="issues">
+        <div class="issue-block">
+            <h3>Violations ({{ report.violations | length }})</h3>
+            {% if report.violations %}
+                <ul>
+                    {% for issue in report.violations %}
+                        <li><strong>{{ issue.type }}</strong>: {{ issue.message }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No violations detected.</p>
+            {% endif %}
+        </div>
+        <div class="issue-block">
+            <h3>Warnings ({{ report.warnings | length }})</h3>
+            {% if report.warnings %}
+                <ul>
+                    {% for warning in report.warnings %}
+                        <li><strong>{{ warning.type }}</strong>: {{ warning.message }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No warnings detected.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if lengths %}
+        <h3>Contours Summary</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Classification</th>
+                    <th>Perimeter (mm)</th>
+                    <th>Area (mm²)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in lengths %}
+                    <tr>
+                        <td>{{ row.id }}</td>
+                        <td>{{ row.class }}</td>
+                        <td>{{ row.perimeter }}</td>
+                        <td>{{ row.area }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    {% if image_metadata %}
+        <h3>Image Conversion</h3>
+        <p>Contours detected: <strong>{{ image_metadata.contour_count }}</strong></p>
+        <ul class="metadata-list">
+            <li>Edge threshold σ: {{ image_metadata.parameters.edge_threshold }}</li>
+            <li>Canny thresholds: {{ image_metadata.parameters.canny_low }} / {{ image_metadata.parameters.canny_high }}</li>
+            <li>Minimum contour area: {{ image_metadata.parameters.min_contour_area }} px</li>
+            <li>Simplify tolerance: {{ image_metadata.parameters.simplify_tolerance }}</li>
+            <li>Blur kernel size: {{ image_metadata.parameters.blur_kernel_size }}</li>
+        </ul>
+    {% endif %}
+
+    {% if debug_images %}
+        <h3>Previews</h3>
+        <div class="preview-grid">
+            {% for item in debug_images %}
+                <figure>
+                    <img src="{{ item.url }}" alt="{{ item.label }} preview">
+                    <figcaption>{{ item.label }}</figcaption>
+                </figure>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if image_metadata %}
+        <section class="card" style="margin-top:1rem">
+            <h3>Reprocess Image</h3>
+            <p>Tweak extraction parameters and rerun without re-uploading.</p>
+            <form method="post" action="{{ url_for('reprocess', analysis_id=analysis_id) }}" class="form-grid">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="edge_threshold">Canny Sigma (0.01–0.99)</label>
+                        <input type="number" name="edge_threshold" id="edge_threshold" step="0.01" min="0.01" max="0.99" value="{{ reprocess_defaults.edge_threshold }}">
+                    </div>
+                    <div class="form-field">
+                        <label for="min_contour_area">Minimum Contour Area (px)</label>
+                        <input type="number" name="min_contour_area" id="min_contour_area" min="10" step="10" value="{{ reprocess_defaults.min_contour_area }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="simplify_tolerance">Simplify Tolerance</label>
+                        <input type="number" name="simplify_tolerance" id="simplify_tolerance" step="0.01" min="0.0001" value="{{ reprocess_defaults.simplify_tolerance }}">
+                    </div>
+                    <div class="form-field">
+                        <label for="blur_kernel_size">Blur Kernel Size</label>
+                        <input type="number" name="blur_kernel_size" id="blur_kernel_size" min="3" step="2" value="{{ reprocess_defaults.blur_kernel_size }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="scale_mm_per_px">Scale (mm per pixel)</label>
+                        <input type="number" name="scale_mm_per_px" id="scale_mm_per_px" step="0.01" min="0.01" value="{{ reprocess_defaults.scale_mm_per_px }}">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit">Reprocess and Re-analyze</button>
+                </div>
+            </form>
+        </section>
+    {% endif %}
+
+    {% if download_links %}
+        <h3>Downloads</h3>
+        <div class="downloads">
+            {% for link in download_links %}
+                <a class="download-link" href="{{ link.href }}">{{ link.label }}</a>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <section class="next-actions">
+        <h3>Next actions</h3>
+        <p>Select where to go next with this job.</p>
+        <div class="cta-grid">
+            <a class="cta-button" href="{{ url_for('index') }}">Analyze another file</a>
+            <a class="cta-button" href="{{ url_for('download_file', analysis_id=analysis_id, file_type='preview') }}">Download preview PNG</a>
+            <a class="cta-button" href="{{ url_for('download_file', analysis_id=analysis_id, file_type='report') }}">Download JSON report</a>
+            <a class="cta-button" href="{{ url_for('download_file', analysis_id=analysis_id, file_type='gcode') }}">Download G-code</a>
+            {% if image_metadata %}
+            <a class="cta-button" href="{{ url_for('download_converted_dxf', analysis_id=analysis_id) }}">Download converted DXF</a>
+            {% endif %}
+        </div>
+    </section>
+</section>
+{% endblock %}

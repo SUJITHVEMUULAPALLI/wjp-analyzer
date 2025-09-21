@@ -1,0 +1,20 @@
+{
+  "file": "sample_image_converted.dxf",
+  "material": {
+    "name": "Granite",
+    "thickness_mm": 25.0
+  },
+  "kerf_mm": 1.1,
+  "metrics": {
+    "length_outer_mm": 0.0,
+    "length_internal_mm": 0.0,
+    "pierces": 0,
+    "est_time_min": 0.0,
+    "cost_inr": 0.0
+  },
+  "violations": [],
+  "warnings": [],
+  "toolpath": {
+    "order": []
+  }
+}
