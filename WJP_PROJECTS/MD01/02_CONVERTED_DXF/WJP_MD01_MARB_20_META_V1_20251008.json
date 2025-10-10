@@ -1,0 +1,16 @@
+{
+  "design_code": "MD01",
+  "material": "Marble",
+  "thickness_mm": 20,
+  "category": "Medallion",
+  "dimensions_inch": [
+    36,
+    36
+  ],
+  "cut_spacing_mm": 3.0,
+  "min_radius_mm": 2.0,
+  "prompt_used": "Circular medallion design for granite flooring",
+  "next_stage": "analyze_dxf",
+  "timestamp": "2025-10-08T12:24:43.194799",
+  "version": "V1"
+}

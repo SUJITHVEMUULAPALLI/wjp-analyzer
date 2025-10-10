@@ -1,0 +1,38 @@
+{
+  "ImageToDXFAgent.convert_image_to_dxf": {
+    "agent_name": "ImageToDXFAgent",
+    "operation": "convert_image_to_dxf",
+    "success_rate": 0.1,
+    "avg_execution_time": 0.32000000000000006,
+    "error_count": 1,
+    "improvement_suggestions": [],
+    "last_updated": "2025-10-08T10:30:53.881269"
+  },
+  "ObjectDetector.export_to_dxf": {
+    "agent_name": "ObjectDetector",
+    "operation": "export_to_dxf",
+    "success_rate": 0.0,
+    "avg_execution_time": 0.0,
+    "error_count": 1,
+    "improvement_suggestions": [],
+    "last_updated": "2025-10-08T10:30:53.873531"
+  },
+  "AnalyzeDXFAgent.run": {
+    "agent_name": "AnalyzeDXFAgent",
+    "operation": "run",
+    "success_rate": 0.0,
+    "avg_execution_time": 0.0,
+    "error_count": 1,
+    "improvement_suggestions": [],
+    "last_updated": "2025-10-08T10:30:53.876144"
+  },
+  "DesignerAgent.run": {
+    "agent_name": "DesignerAgent",
+    "operation": "run",
+    "success_rate": 0.1,
+    "avg_execution_time": 0.25,
+    "error_count": 0,
+    "improvement_suggestions": [],
+    "last_updated": "2025-10-08T10:30:53.878754"
+  }
+}

@@ -1,0 +1,53 @@
+[
+  {
+    "timestamp": "2025-10-08T10:30:53.864474",
+    "agent_name": "ImageToDXFAgent",
+    "operation": "convert_image_to_dxf",
+    "input_data": {
+      "image_path": "design_2025-10-08_10-19-01.png"
+    },
+    "error_type": "Exception",
+    "error_message": "DXF file generated with 0 entities",
+    "context": {
+      "threshold": 180,
+      "binary_mode": "THRESH_BINARY"
+    },
+    "severity": "low",
+    "resolution": null,
+    "learned_from": false
+  },
+  {
+    "timestamp": "2025-10-08T10:30:53.873437",
+    "agent_name": "ObjectDetector",
+    "operation": "export_to_dxf",
+    "input_data": {
+      "contour_points": 440
+    },
+    "error_type": "Exception",
+    "error_message": "Open polylines prevent proper analysis",
+    "context": {
+      "is_closed": false,
+      "gap_distance": 22.0
+    },
+    "severity": "low",
+    "resolution": null,
+    "learned_from": false
+  },
+  {
+    "timestamp": "2025-10-08T10:30:53.876094",
+    "agent_name": "AnalyzeDXFAgent",
+    "operation": "run",
+    "input_data": {
+      "dxf_path": "design_2025-10-08_10-19-01_converted.dxf"
+    },
+    "error_type": "Exception",
+    "error_message": "Zero cutting measurements due to open polylines",
+    "context": {
+      "entities": 1,
+      "components": 0
+    },
+    "severity": "low",
+    "resolution": null,
+    "learned_from": false
+  }
+]

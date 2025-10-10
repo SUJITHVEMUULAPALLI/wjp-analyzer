@@ -1,73 +1,28 @@
-{% extends "base.html" %}
-{% block content %}
-<section class="card">
-    <h2>Upload DXF or Convert Image</h2>
-    <p>Upload a DXF file for direct analysis or provide an image to extract contours and generate a DXF automatically.</p>
-    <form method="post" action="{{ url_for('upload_file') }}" enctype="multipart/form-data" class="form-grid">
-        <div class="form-field">
-            <label for="file">DXF or Image File</label>
-            <input type="file" id="file" name="file" accept=".dxf,.jpg,.jpeg,.png,.bmp,.tiff" required>
-            <small>Allowed extensions: {{ allowed_extensions | join(', ') }}</small>
-        </div>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WJP Analyzer - Home</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; color: #333; }
+    h1 { color: #1a73e8; }
+    ul { line-height: 1.8; }
+    .ok { color: #2e7d32; }
+    .warn { color: #c62828; }
+    a { color: #1a73e8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+  </head>
+<body>
+  <h1>WJP Analyzer</h1>
+  <p>Status: {% if openai_ready %}<span class="ok">OpenAI configured</span>{% else %}<span class="warn">OpenAI not configured</span>{% endif %}</p>
+  <ul>
+    <li><a href="/health">Health JSON</a></li>
+  </ul>
+  <p>API endpoints (JSON):</p>
+  <ul>
+    <li><code>POST /design</code> — returns image URL or saved PNG</li>
+  </ul>
+</body>
+</html>
 
-        <h3>Material &amp; Cutting Parameters</h3>
-        <div class="form-field">
-            <label for="material">Material</label>
-            <input type="text" id="material" name="material" value="{{ form_defaults.material }}">
-        </div>
-        <div class="form-row">
-            <div class="form-field">
-                <label for="thickness">Thickness (mm)</label>
-                <input type="number" id="thickness" name="thickness" step="0.1" value="{{ form_defaults.thickness }}">
-            </div>
-            <div class="form-field">
-                <label for="kerf">Kerf (mm)</label>
-                <input type="number" id="kerf" name="kerf" step="0.05" value="{{ form_defaults.kerf }}">
-            </div>
-            <div class="form-field">
-                <label for="rate_per_m">Rate per metre (INR)</label>
-                <input type="number" id="rate_per_m" name="rate_per_m" step="0.1" value="{{ form_defaults.rate_per_m }}">
-            </div>
-        </div>
-
-        <details class="image-advanced">
-            <summary>Image Processing Options</summary>
-            <p>These settings control how contours are extracted when an image is uploaded.</p>
-            <div class="form-row">
-                <div class="form-field">
-                    <label for="edge_threshold">Canny Sigma (0.01–0.99)</label>
-                    <input type="number" id="edge_threshold" name="edge_threshold" step="0.01" min="0.01" max="0.99" value="{{ image_defaults.edge_threshold }}">
-                    <small>Lower values detect more edges; higher values focus on stronger edges.</small>
-                </div>
-                <div class="form-field">
-                    <label for="min_contour_area">Minimum Contour Area (px)</label>
-                    <input type="number" id="min_contour_area" name="min_contour_area" min="10" step="10" value="{{ image_defaults.min_contour_area }}">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-field">
-                    <label for="simplify_tolerance">Simplify Tolerance</label>
-                    <input type="number" id="simplify_tolerance" name="simplify_tolerance" step="0.1" min="0.0001" value="{{ image_defaults.simplify_tolerance }}">
-                    <small>Higher values keep fewer vertices.</small>
-                </div>
-                <div class="form-field">
-                    <label for="blur_kernel_size">Blur Kernel Size</label>
-                    <input type="number" id="blur_kernel_size" name="blur_kernel_size" min="3" step="2" value="{{ image_defaults.blur_kernel_size }}">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-field">
-                    <label for="scale_mm_per_px">Scale (mm per pixel)</label>
-                    <input type="number" id="scale_mm_per_px" name="scale_mm_per_px" step="0.01" min="0.01" value="{{ image_defaults.scale_mm_per_px }}">
-                    <small>Set using a known dimension in the image (e.g., 600mm tile width ÷ image width in pixels).</small>
-                </div>
-            </div>
-        </details>
-
-        <div class="form-actions">
-            <button type="submit">Analyze</button>
-            <a class="link-button" href="{{ url_for('generate_sample') }}">Download Sample DXF</a>
-        </div>
-    </form>
-</section>
-{% endblock %}

@@ -1,0 +1,46 @@
+{
+  "timestamp": "2025-10-08T10:31:39.658587",
+  "summary": {
+    "total_issues": 4,
+    "issues_with_fixes": 3,
+    "total_operations": 0,
+    "successful_operations": 0
+  },
+  "known_issues": {
+    "dxf_no_geometry": {
+      "description": "DXF files generated with 0 entities",
+      "root_cause": "Wrong thresholding method (THRESH_BINARY instead of THRESH_BINARY_INV)",
+      "severity": "high",
+      "frequency": 0,
+      "last_occurred": null,
+      "fix_applied": true
+    },
+    "open_polylines": {
+      "description": "Open polylines prevent proper analysis",
+      "root_cause": "Contour detection doesn't close polylines",
+      "severity": "high",
+      "frequency": 0,
+      "last_occurred": null,
+      "fix_applied": true
+    },
+    "zero_measurements": {
+      "description": "Zero cutting measurements in analysis",
+      "root_cause": "Open polylines prevent component extraction",
+      "severity": "medium",
+      "frequency": 0,
+      "last_occurred": null,
+      "fix_applied": true
+    },
+    "tiny_segments": {
+      "description": "Too many tiny segments in polylines",
+      "root_cause": "High vertex count from contour detection",
+      "severity": "medium",
+      "frequency": 0,
+      "last_occurred": null,
+      "fix_applied": false
+    }
+  },
+  "applied_fixes": {},
+  "performance_summary": {},
+  "recommendations": []
+}

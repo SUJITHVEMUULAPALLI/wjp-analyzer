@@ -1,0 +1,46 @@
+{
+  "streamlit_results": {
+    "file": "Tile 21_crop_preview_converted.dxf",
+    "metrics": {
+      "length_internal_mm": 11451.1,
+      "length_outer_mm": 11451.1,
+      "pierces": 10,
+      "estimated_cutting_cost_inr": 9210.88,
+      "estimated_cutting_time_min": 9.54
+    },
+    "scale": {
+      "units_factor": 1.0,
+      "bbox_before": {
+        "width": 1000.0,
+        "height": 1000.0,
+        "count": 11
+      }
+    },
+    "layers": {
+      "OUTER": 1,
+      "COMPLEX": 6,
+      "DECOR": 3
+    }
+  },
+  "cli_results": {
+    "image_name": "Tile 21.png",
+    "dxf_conversion": {
+      "entity_count": 4,
+      "open_polylines": 4
+    },
+    "analysis": {
+      "length_internal_mm": 2548.16,
+      "length_outer_mm": 2548.16,
+      "pierces": 3
+    },
+    "learning_applied": true,
+    "execution_time": 30.51
+  },
+  "comparison": {
+    "object_count_diff": 7,
+    "length_diff": 8902.94,
+    "pierce_diff": 7,
+    "streamlit_advantages": 5,
+    "cli_advantages": 3
+  }
+}

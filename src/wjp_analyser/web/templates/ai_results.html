@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>🤖 AI Analysis Results</h2>
+    
+    {% if ai_analysis %}
+    <div class="ai-summary">
+        <div class="feasibility-score">
+            <h3>Feasibility Score</h3>
+            <div class="score-circle {{ 'high' if ai_analysis.feasibility_score >= 80 else 'medium' if ai_analysis.feasibility_score >= 60 else 'low' }}">
+                {{ "%.0f"|format(ai_analysis.feasibility_score) }}
+            </div>
+            <p>{{ ai_analysis.complexity_level }} Complexity</p>
+        </div>
+        
+        <div class="analysis-details">
+            <h3>Analysis Summary</h3>
+            <p><strong>Estimated Time:</strong> {{ ai_analysis.estimated_time }}</p>
+            <p><strong>Model Used:</strong> {{ ai_analysis.model_used if ai_analysis.model_used else 'Unknown' }}</p>
+        </div>
+    </div>
+    
+    <div class="ai-recommendations">
+        <div class="recommendation-section">
+            <h3>🎯 Material Recommendations</h3>
+            <ul>
+                {% for rec in ai_analysis.material_recommendations %}
+                <li>{{ rec }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <div class="recommendation-section">
+            <h3>🔧 Toolpath Suggestions</h3>
+            <ul>
+                {% for suggestion in ai_analysis.toolpath_suggestions %}
+                <li>{{ suggestion }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <div class="recommendation-section">
+            <h3>⚠️ Potential Issues</h3>
+            <ul>
+                {% for issue in ai_analysis.potential_issues %}
+                <li>{{ issue }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <div class="recommendation-section">
+            <h3>💡 Optimization Tips</h3>
+            <ul>
+                {% for tip in ai_analysis.optimization_tips %}
+                <li>{{ tip }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <div class="recommendation-section">
+            <h3>💰 Cost Considerations</h3>
+            <ul>
+                {% for consideration in ai_analysis.cost_considerations %}
+                <li>{{ consideration }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    
+    {% else %}
+    <div class="error-message">
+        <h3>AI Analysis Failed</h3>
+        <p>Unable to complete AI analysis. Please check your AI configuration and try again.</p>
+    </div>
+    {% endif %}
+    
+    {% if basic_report %}
+    <div class="basic-analysis">
+        <h3>Basic Analysis Results</h3>
+        <div class="analysis-stats">
+            <div class="stat-item">
+                <strong>Total Length:</strong> {{ "%.2f"|format(basic_report['metrics']['length_internal_mm']) }} mm
+            </div>
+            <div class="stat-item">
+                <strong>Polygons:</strong> {{ basic_report['entities']['polygons'] }}
+            </div>
+            <div class="stat-item">
+                <strong>Estimated Cost:</strong> ${{ "%.2f"|format(basic_report['metrics']['cost_inr'] / 80) }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="actions">
+        <a href="{{ url_for('ai_analysis') }}" class="cta-button">Run Another Analysis</a>
+        <a href="{{ url_for('index') }}" class="link-button">Back to Workflow</a>
+    </div>
+</section>
+
+<style>
+.ai-summary {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2rem;
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.feasibility-score {
+    text-align: center;
+}
+
+.score-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    color: white;
+    margin: 0 auto 1rem auto;
+}
+
+.score-circle.high {
+    background: #48bb78;
+}
+
+.score-circle.medium {
+    background: #ed8936;
+}
+
+.score-circle.low {
+    background: #f56565;
+}
+
+.analysis-details h3 {
+    margin-top: 0;
+    color: #2d3748;
+}
+
+.ai-recommendations {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.recommendation-section {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.recommendation-section h3 {
+    margin-top: 0;
+    color: #2d3748;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 0.5rem;
+}
+
+.recommendation-section ul {
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.recommendation-section li {
+    margin: 0.5rem 0;
+    color: #4a5568;
+}
+
+.basic-analysis {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: #f7fafc;
+    border-radius: 8px;
+}
+
+.analysis-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.stat-item {
+    padding: 1rem;
+    background: #ffffff;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.error-message {
+    background: #fed7d7;
+    border: 1px solid #feb2b2;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.error-message h3 {
+    color: #c53030;
+    margin-top: 0;
+}
+
+.actions {
+    margin-top: 2rem;
+    text-align: center;
+}
+
+.actions .cta-button {
+    margin-right: 1rem;
+}
+</style>
+{% endblock %}

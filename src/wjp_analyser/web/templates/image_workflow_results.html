@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Workflow Results - Waterjet Analyser</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .results-header {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .results-header h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        .result-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .result-card h3 {
+            color: #1f2937;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .metric:last-child {
+            border-bottom: none;
+        }
+        .metric-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .metric-value {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        .quality-score {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .quality-score.excellent {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .quality-score.good {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .quality-score.poor {
+            background: #fecaca;
+            color: #991b1b;
+        }
+        .issues-list {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .issues-list h4 {
+            color: #dc2626;
+            margin: 0 0 0.5rem 0;
+        }
+        .issues-list ul {
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+        .issues-list li {
+            color: #991b1b;
+            margin: 0.25rem 0;
+        }
+        .recommendations-list {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .recommendations-list h4 {
+            color: #16a34a;
+            margin: 0 0 0.5rem 0;
+        }
+        .recommendations-list ul {
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+        .recommendations-list li {
+            color: #166534;
+            margin: 0.25rem 0;
+        }
+        .cost-breakdown {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .cost-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .cost-item:last-child {
+            border-bottom: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #1f2937;
+        }
+        .btn-download {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            margin: 0.5rem;
+        }
+        .btn-download:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+            margin: 0.5rem;
+        }
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4b5563, #374151);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="results-header">
+            <h1>📸 Image Workflow Results</h1>
+            <p>Complete analysis of your image-to-DXF conversion</p>
+        </div>
+
+        <div class="results-grid">
+            <!-- Validation Results -->
+            <div class="result-card">
+                <h3>🔍 DXF Validation</h3>
+                {% if results.validation_result %}
+                    <div class="metric">
+                        <span class="metric-label">Quality Score</span>
+                        <span class="quality-score {% if results.validation_result.quality_score >= 80 %}excellent{% elif results.validation_result.quality_score >= 60 %}good{% else %}poor{% endif %}">
+                            {{ "%.1f"|format(results.validation_result.quality_score) }}/100
+                        </span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Total Entities</span>
+                        <span class="metric-value">{{ results.validation_result.total_entities }}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Polygons</span>
+                        <span class="metric-value">{{ results.validation_result.polygons }}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Open Contours</span>
+                        <span class="metric-value">{{ results.validation_result.open_contours }}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Min Feature Size</span>
+                        <span class="metric-value">{{ "%.2f"|format(results.validation_result.min_feature_size) }} mm</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Max Feature Size</span>
+                        <span class="metric-value">{{ "%.2f"|format(results.validation_result.max_feature_size) }} mm</span>
+                    </div>
+                {% else %}
+                    <p style="color: #6b7280;">Validation results not available</p>
+                {% endif %}
+            </div>
+
+            <!-- Toolpath Parameters -->
+            <div class="result-card">
+                <h3>🔧 Toolpath Parameters</h3>
+                {% if results.toolpath_parameters %}
+                    <div class="metric">
+                        <span class="metric-label">Cutting Speed</span>
+                        <span class="metric-value">{{ "%.0f"|format(results.toolpath_parameters.cutting_speed_mm_min) }} mm/min</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Pierce Time</span>
+                        <span class="metric-value">{{ "%.1f"|format(results.toolpath_parameters.pierce_time_s) }} s</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Kerf Width</span>
+                        <span class="metric-value">{{ "%.2f"|format(results.toolpath_parameters.kerf_width_mm) }} mm</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Total Cutting Length</span>
+                        <span class="metric-value">{{ "%.0f"|format(results.toolpath_parameters.total_cutting_length_mm) }} mm</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Estimated Time</span>
+                        <span class="metric-value">{{ "%.1f"|format(results.toolpath_parameters.estimated_cutting_time_min) }} min</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Quality Level</span>
+                        <span class="metric-value">{{ results.toolpath_parameters.quality_level.title() }}</span>
+                    </div>
+                {% else %}
+                    <p style="color: #6b7280;">Toolpath parameters not available</p>
+                {% endif %}
+            </div>
+
+            <!-- Cost Estimation -->
+            <div class="result-card">
+                <h3>💰 Cost Estimation</h3>
+                {% if results.cost_estimate %}
+                    <div class="cost-breakdown">
+                        <div class="cost-item">
+                            <span>Material Cost</span>
+                            <span>${{ "%.2f"|format(results.cost_estimate.material_cost) }}</span>
+                        </div>
+                        <div class="cost-item">
+                            <span>Cutting Time</span>
+                            <span>${{ "%.2f"|format(results.cost_estimate.cutting_time_cost) }}</span>
+                        </div>
+                        <div class="cost-item">
+                            <span>Setup Cost</span>
+                            <span>${{ "%.2f"|format(results.cost_estimate.setup_cost) }}</span>
+                        </div>
+                        <div class="cost-item">
+                            <span>Total Cost</span>
+                            <span>${{ "%.2f"|format(results.cost_estimate.total_cost) }}</span>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Cost per Unit</span>
+                        <span class="metric-value">${{ "%.2f"|format(results.cost_estimate.cost_per_unit) }}</span>
+                    </div>
+                {% else %}
+                    <p style="color: #6b7280;">Cost estimation not available</p>
+                {% endif %}
+            </div>
+
+            <!-- Processing Summary -->
+            <div class="result-card">
+                <h3>📊 Processing Summary</h3>
+                <div class="metric">
+                    <span class="metric-label">Workflow ID</span>
+                    <span class="metric-value">{{ workflow_id }}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Time</span>
+                    <span class="metric-value">{{ "%.2f"|format(results.total_time) }} s</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Steps Completed</span>
+                    <span class="metric-value">{{ results.steps_completed|length }}/6</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value" style="color: #10b981;">{{ results.current_step.title() }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Issues and Recommendations -->
+        {% if results.validation_result and results.validation_result.issues %}
+        <div class="issues-list">
+            <h4>⚠️ Issues Found</h4>
+            <ul>
+                {% for issue in results.validation_result.issues %}
+                <li>{{ issue }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if results.validation_result and results.validation_result.recommendations %}
+        <div class="recommendations-list">
+            <h4>💡 Recommendations</h4>
+            <ul>
+                {% for recommendation in results.validation_result.recommendations %}
+                <li>{{ recommendation }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div style="text-align: center; margin: 3rem 0;">
+            <a href="{{ url_for('download_results', workflow_id=workflow_id) }}" class="btn-download">
+                📥 Download Results
+            </a>
+            <a href="{{ url_for('index') }}" class="btn-secondary">
+                🏠 Back to Home
+            </a>
+            <a href="{{ url_for('image_workflow') }}" class="btn-secondary">
+                🔄 Process Another Image
+            </a>
+        </div>
+
+        <!-- Error Display -->
+        {% if results.errors %}
+        <div style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 1rem; border-radius: 8px; margin: 2rem 0;">
+            <h4 style="margin: 0 0 0.5rem 0;">Errors Encountered:</h4>
+            <ul style="margin: 0; padding-left: 1.5rem;">
+                {% for error in results.errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Add some interactivity
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animate metric values
+            const metrics = document.querySelectorAll('.metric-value');
+            metrics.forEach(metric => {
+                metric.style.opacity = '0';
+                metric.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    metric.style.transition = 'all 0.5s ease';
+                    metric.style.opacity = '1';
+                    metric.style.transform = 'translateY(0)';
+                }, Math.random() * 500);
+            });
+        });
+    </script>
+</body>
+</html>

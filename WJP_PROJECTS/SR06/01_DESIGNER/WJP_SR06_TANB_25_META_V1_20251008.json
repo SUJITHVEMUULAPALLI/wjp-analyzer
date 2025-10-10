@@ -1,0 +1,16 @@
+{
+  "design_code": "SR06",
+  "material": "Tan Brown Granite",
+  "thickness_mm": 25,
+  "category": "Inlay Tile",
+  "dimensions_inch": [
+    24,
+    24
+  ],
+  "cut_spacing_mm": 3.0,
+  "min_radius_mm": 2.0,
+  "prompt_used": "Waterjet-safe Tan Brown granite tile with white marble inlay, 24x24 inch",
+  "next_stage": "image_to_dxf",
+  "timestamp": "2025-10-08T12:24:42.218405",
+  "version": "V1"
+}

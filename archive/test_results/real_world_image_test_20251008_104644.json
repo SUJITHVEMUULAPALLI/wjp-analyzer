@@ -1,0 +1,332 @@
+{
+  "timestamp": "2025-10-08T10:44:13.195078",
+  "total_images": 19,
+  "successful_conversions": 17,
+  "successful_analyses": 17,
+  "learning_applications": 17,
+  "images": [
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 12.png",
+      "image_name": "Tile 12.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 12_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-44-24.json"
+      },
+      "learning_applied": true,
+      "execution_time": 10.933588743209839
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 13.png",
+      "image_name": "Tile 13.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 13_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-44-28.json"
+      },
+      "learning_applied": true,
+      "execution_time": 4.46678614616394
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 14.png",
+      "image_name": "Tile 14.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 14_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 4118.52,
+        "length_outer_mm": 4118.52,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-44-30.json"
+      },
+      "learning_applied": true,
+      "execution_time": 2.0730667114257812
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 16.png",
+      "image_name": "Tile 16.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 16_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-44-34.json"
+      },
+      "learning_applied": true,
+      "execution_time": 4.027000665664673
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 21.png",
+      "image_name": "Tile 21.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 21_converted_fixed.dxf",
+        "entity_count": 4,
+        "open_polylines": 4
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 2548.16,
+        "length_outer_mm": 2548.16,
+        "pierces": 3,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-45-05.json"
+      },
+      "learning_applied": true,
+      "execution_time": 30.50878095626831
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 22.png",
+      "image_name": "Tile 22.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 22_converted_fixed.dxf",
+        "entity_count": 9,
+        "open_polylines": 9
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 3844.93,
+        "length_outer_mm": 3844.93,
+        "pierces": 8,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-45-37.json"
+      },
+      "learning_applied": true,
+      "execution_time": 31.49463701248169
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 31.png",
+      "image_name": "Tile 31.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 31_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 3903.65,
+        "length_outer_mm": 3903.65,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-45-38.json"
+      },
+      "learning_applied": true,
+      "execution_time": 0.9291608333587646
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 33.png",
+      "image_name": "Tile 33.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 33_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 4050.74,
+        "length_outer_mm": 4050.74,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-45-40.json"
+      },
+      "learning_applied": true,
+      "execution_time": 2.398644208908081
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 44.png",
+      "image_name": "Tile 44.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 44_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-45-42.json"
+      },
+      "learning_applied": true,
+      "execution_time": 1.7411472797393799
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 46.png",
+      "image_name": "Tile 46.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 46_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-02.json"
+      },
+      "learning_applied": true,
+      "execution_time": 20.76868224143982
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile45.png",
+      "image_name": "Tile45.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile45_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-22.json"
+      },
+      "learning_applied": true,
+      "execution_time": 19.606595039367676
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tole47.png",
+      "image_name": "Tole47.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tole47_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-27.json"
+      },
+      "learning_applied": true,
+      "execution_time": 5.4069132804870605
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Wall 26.png",
+      "image_name": "Wall 26.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Wall 26_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 4002.39,
+        "length_outer_mm": 4002.39,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-30.json"
+      },
+      "learning_applied": true,
+      "execution_time": 0.4592585563659668
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Wall 29.png",
+      "image_name": "Wall 29.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Wall 29_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 3926.39,
+        "length_outer_mm": 3926.39,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-30.json"
+      },
+      "learning_applied": true,
+      "execution_time": 0.5505225658416748
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 9.png",
+      "image_name": "Tile 9.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 9_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-36.json"
+      },
+      "learning_applied": true,
+      "execution_time": 5.500778913497925
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 10.png",
+      "image_name": "Tile 10.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 10_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-40.json"
+      },
+      "learning_applied": true,
+      "execution_time": 3.845672369003296
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 11.png",
+      "image_name": "Tile 11.png",
+      "dxf_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 11_converted_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_10-46-44.json"
+      },
+      "learning_applied": true,
+      "execution_time": 4.582402944564819
+    }
+  ]
+}

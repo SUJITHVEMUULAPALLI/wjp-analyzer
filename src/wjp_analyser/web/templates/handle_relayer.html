@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>Move Entities by Handle</h2>
+  <p>Paste DXF entity handles and move them to a target layer. Optionally re-run analysis to refresh artifacts.</p>
+
+  <form id="relayer-form" onsubmit="return false;">
+    <label>DXF Path</label>
+    <input type="text" id="dxf_path" placeholder="Full path to .dxf" style="width:100%" />
+    <small>Tip: Place files under: {{ upload_folder }}</small>
+    <br/><br/>
+
+    <label>Handles (comma or space separated)</label>
+    <textarea id="handles" rows="4" style="width:100%" placeholder="E.g. 1A2B, 3C4D, 5E6F"></textarea>
+
+    <div style="display:flex; gap:16px; align-items:center;">
+      <div style="flex:1;">
+        <label>Target Layer</label>
+        <input type="text" id="target_layer" value="OUTER" />
+      </div>
+      <div style="flex:1;">
+        <label>Sheet Size (W x H mm)</label>
+        <input type="number" id="sheet_w" value="{{ default_sheet_w }}" step="1" style="width:45%" /> x
+        <input type="number" id="sheet_h" value="{{ default_sheet_h }}" step="1" style="width:45%" />
+      </div>
+    </div>
+
+    <br/>
+    <button class="cta-button" id="run-btn">Move + Analyze</button>
+  </form>
+
+  <div id="result" style="margin-top:16px;"></div>
+</section>
+
+<script>
+const uploadFolder = {{ upload_folder|tojson }};
+function toServeLink(absPath) {
+  if (!absPath) return '';
+  const normUF = uploadFolder.replace(/\\/g, '/');
+  const normP = String(absPath).replace(/\\/g, '/');
+  if (normP.startsWith(normUF)) {
+    let rel = normP.substring(normUF.length);
+    if (rel.startsWith('/')) rel = rel.substring(1);
+    return '/files/' + rel;
+  }
+  return '';
+}
+
+async function postJSON(url = '', data = {}) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return response.json();
+}
+
+document.getElementById('run-btn').addEventListener('click', async () => {
+  const dxf_path = document.getElementById('dxf_path').value.trim();
+  const handles_raw = document.getElementById('handles').value.trim();
+  const target_layer = document.getElementById('target_layer').value.trim();
+  const sheet_w = parseFloat(document.getElementById('sheet_w').value) || 1000.0;
+  const sheet_h = parseFloat(document.getElementById('sheet_h').value) || 1000.0;
+
+  if (!dxf_path) { alert('Please enter a DXF path.'); return; }
+  if (!handles_raw) { alert('Please paste at least one handle.'); return; }
+  if (!target_layer) { alert('Please enter a target layer.'); return; }
+
+  const handles = handles_raw.replace(/,/g, ' ').split(/\s+/).map(h => h.trim().toUpperCase()).filter(Boolean);
+
+  const payload = { dxf_path, handles, target_layer, sheet_width: sheet_w, sheet_height: sheet_h };
+  const out = document.getElementById('result');
+  out.innerHTML = '<p>Working…</p>';
+
+  try {
+    const resp = await postJSON('/api/move_to_layer', payload);
+    if (!resp.ok) {
+      out.innerHTML = `<p style="color:red">Error: ${resp.error || 'unknown error'}</p>`;
+      return;
+    }
+    const a = resp.artifacts || {};
+    const upd = toServeLink(resp.updated_dxf);
+    out.innerHTML = `
+      <p><b>Updated DXF:</b> ${upd ? `<a href="${upd}" target="_blank">${resp.updated_dxf}</a>` : resp.updated_dxf}</p>
+      <p><b>Metrics:</b> pierces=${(resp.metrics||{}).pierces ?? '?'} length=${(resp.metrics||{}).length_internal_mm ?? '?'} mm</p>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        ${a.layered_dxf && toServeLink(a.layered_dxf) ? `<a class=\"link-button\" href=\"${toServeLink(a.layered_dxf)}\" target=\"_blank\">Download Layered DXF</a>` : ''}
+        ${a.gcode && toServeLink(a.gcode) ? `<a class=\"link-button\" href=\"${toServeLink(a.gcode)}\" target=\"_blank\">Download G-code</a>` : ''}
+        ${a.report_json && toServeLink(a.report_json) ? `<a class=\"link-button\" href=\"${toServeLink(a.report_json)}\" target=\"_blank\">View Report</a>` : ''}
+      </div>
+    `;
+  } catch (e) {
+    out.innerHTML = `<p style="color:red">Failed: ${e}</p>`;
+  }
+});
+</script>
+{% endblock %}
+

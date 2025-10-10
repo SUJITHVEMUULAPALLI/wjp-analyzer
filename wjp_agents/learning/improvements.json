@@ -1,0 +1,22 @@
+{
+  "error_prev_common_error_Exception": {
+    "applied": true,
+    "timestamp": "2025-10-08T10:30:53.885276",
+    "description": "Most common error: Exception (occurred 3 times)",
+    "recommendations": [
+      "Add specific error handling for Exception",
+      "Implement preventive checks before operations",
+      "Add retry mechanisms for this error type"
+    ]
+  },
+  "workflow_opt_low_performance_agents": {
+    "applied": true,
+    "timestamp": "2025-10-08T10:30:53.885295",
+    "description": "Low performance detected in 4 operations",
+    "recommendations": [
+      "Review and optimize low-performing operations",
+      "Add more robust error handling",
+      "Consider parameter tuning for these operations"
+    ]
+  }
+}

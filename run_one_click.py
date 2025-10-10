@@ -13,8 +13,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict
 
-from cli.wjdx import Args, analyze, command_gcode
-from scripts.make_sample_dxf import make_sample
+import sys
+import os
+
+# Add src to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from wjp_analyser.analysis.dxf_analyzer import AnalyzeArgs as Args, analyze_dxf as analyze
+from cli.main import command_gcode
+from tools.make_sample_dxf import make_sample
 
 REPO_ROOT = Path(__file__).resolve().parent
 REQUIREMENTS = REPO_ROOT / "requirements.txt"
@@ -45,7 +52,7 @@ def install_dependencies(skip: bool, upgrade: bool) -> None:
 
 def ensure_sample_dxf() -> Path:
     """Ensure a sample DXF is available for the demo pipeline."""
-    sample_dir = REPO_ROOT / "samples"
+    sample_dir = REPO_ROOT / "data" / "samples" / "dxf"
     sample_path = sample_dir / "medallion_sample.dxf"
     if not sample_path.exists():
         sample_dir.mkdir(parents=True, exist_ok=True)
@@ -63,6 +70,25 @@ def run_sample_analysis(dxf_path: Path, output_dir: Path) -> Dict[str, float]:
         kerf=1.1,
         rate_per_m=825.0,
         out=str(output_dir),
+        use_advanced_toolpath=True,
+        rapid_speed=10000.0,
+        cutting_speed=1200.0,
+        pierce_time=0.5,
+        optimize_rapids=True,
+        optimize_direction=True,
+        entry_strategy="tangent",
+        # Pierce-reduction preset
+        soften_method="simplify",
+        soften_tolerance=0.10,
+        fillet_radius_mm=0.50,
+        fillet_min_angle_deg=120.0,
+        # Normalize to a standard frame for predictable sizing
+        normalize_mode="fit",
+        target_frame_w_mm=1000.0,
+        target_frame_h_mm=1000.0,
+        frame_margin_mm=0.0,
+        normalize_origin=True,
+        require_fit_within_frame=True,
     )
     analyze(str(dxf_path), args)
 
@@ -159,7 +185,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=["ui", "demo"],
+        choices=["ui", "demo", "guided", "batch-guided", "all-interfaces"],
         default="ui",
         help="Which workflow to run (default: ui).",
     )
@@ -197,11 +223,92 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def launch_guided_interface(host: str, port: int, no_browser: bool) -> None:
+    """Launch the guided individual interface using run_web_ui."""
+    import subprocess
+    import sys
+    
+    cmd = [
+        sys.executable, "run_web_ui.py",
+        "--host", host,
+        "--port", str(port),
+        "--guided"
+    ]
+    
+    if no_browser:
+        cmd.append("--no-browser")
+    
+    print(f"[guided] Starting Guided Individual Interface on {host}:{port}")
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[guided] Failed to launch guided interface: {exc}")
+    except KeyboardInterrupt:
+        print("\n[guided] Stopping guided interface...")
+
+
+def launch_batch_guided_interface(host: str, port: int, no_browser: bool) -> None:
+    """Launch the guided batch interface using run_web_ui."""
+    import subprocess
+    import sys
+    
+    cmd = [
+        sys.executable, "run_web_ui.py",
+        "--host", host,
+        "--port", str(port),
+        "--batch-guided"
+    ]
+    
+    if no_browser:
+        cmd.append("--no-browser")
+    
+    print(f"[batch-guided] Starting Guided Batch Interface on {host}:{port}")
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[batch-guided] Failed to launch batch guided interface: {exc}")
+    except KeyboardInterrupt:
+        print("\n[batch-guided] Stopping batch guided interface...")
+
+
+def launch_all_interfaces(host: str, port: int, no_browser: bool) -> None:
+    """Launch all interfaces using run_web_ui."""
+    import subprocess
+    import sys
+    
+    cmd = [
+        sys.executable, "run_web_ui.py",
+        "--host", host,
+        "--port", str(port),
+        "--all-interfaces"
+    ]
+    
+    if no_browser:
+        cmd.append("--no-browser")
+    
+    print(f"[all-interfaces] Starting All Interfaces from port {port}")
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"[all-interfaces] Failed to launch all interfaces: {exc}")
+    except KeyboardInterrupt:
+        print("\n[all-interfaces] Stopping all interfaces...")
+
+
 def main() -> int:
     args = parse_args()
 
     if args.mode == "demo":
         run_demo(args.skip_install, args.upgrade, args.open_preview)
+    elif args.mode == "guided":
+        install_dependencies(args.skip_install, args.upgrade)
+        launch_guided_interface(args.host, args.port, args.no_browser)
+    elif args.mode == "batch-guided":
+        install_dependencies(args.skip_install, args.upgrade)
+        launch_batch_guided_interface(args.host, args.port, args.no_browser)
+    elif args.mode == "all-interfaces":
+        install_dependencies(args.skip_install, args.upgrade)
+        launch_all_interfaces(args.host, args.port, args.no_browser)
     else:
         run_ui(args.skip_install, args.upgrade, args.host, args.port, args.no_browser)
 

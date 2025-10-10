@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DXF Upload Workflow - Waterjet Analyser</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .workflow-header {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .workflow-header h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+        .workflow-header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+        }
+        .workflow-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        .step-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .step-card.active {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        .step-card.completed {
+            border-color: #059669;
+            background: #ecfdf5;
+        }
+        .step-card h4 {
+            margin: 0 0 0.5rem 0;
+            color: #1f2937;
+        }
+        .step-card p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        .upload-area {
+            border: 2px dashed #10b981;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            background: #f8fafc;
+            margin: 2rem 0;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #059669;
+            background: #f0fdf4;
+        }
+        .upload-area.dragover {
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+        .file-input {
+            display: none;
+        }
+        .btn-upload {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-upload:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-1px);
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+        .form-field {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        .form-field label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+        .form-field input, .form-field select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        .form-field input:focus, .form-field select:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+        .processing-indicator {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            margin: 2rem 0;
+        }
+        .spinner {
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .layer-preview {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .layer-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .layer-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="workflow-header">
+            <h1>📐 DXF Upload Workflow</h1>
+            <p>Upload a DXF file and specify parameters for advanced analysis and nesting</p>
+        </div>
+
+        <div class="workflow-steps">
+            <div class="step-card" id="step1">
+                <h4>1. Upload DXF</h4>
+                <p>Select your DXF file</p>
+            </div>
+            <div class="step-card" id="step2">
+                <h4>2. Enter Parameters</h4>
+                <p>Specify dimensions & material</p>
+            </div>
+            <div class="step-card" id="step3">
+                <h4>3. Resize DXF</h4>
+                <p>Resize without distortion</p>
+            </div>
+            <div class="step-card" id="step4">
+                <h4>4. Layer Management</h4>
+                <p>Real-time layer analysis</p>
+            </div>
+            <div class="step-card" id="step5">
+                <h4>5. Nesting</h4>
+                <p>Optimize layout</p>
+            </div>
+            <div class="step-card" id="step6">
+                <h4>6. Analysis</h4>
+                <p>Toolpath & costs</p>
+            </div>
+        </div>
+
+        <form method="post" action="{{ url_for('process_dxf') }}" enctype="multipart/form-data" id="dxfForm">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon" style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+                <h3>Drop your DXF file here or click to browse</h3>
+                <p>Supported format: DXF</p>
+                <p style="color: #6b7280; font-size: 0.9rem;">Maximum file size: 50MB</p>
+                
+                <input type="file" name="file" id="fileInput" class="file-input" accept=".dxf" required>
+                <button type="button" class="btn-upload" onclick="document.getElementById('fileInput').click()">
+                    Choose DXF File
+                </button>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label for="width">Target Width (mm)</label>
+                    <input type="number" name="width" id="width" value="100" min="1" max="10000" step="0.1" required>
+                </div>
+                <div class="form-field">
+                    <label for="height">Target Height (mm)</label>
+                    <input type="number" name="height" id="height" value="100" min="1" max="10000" step="0.1" required>
+                </div>
+                <div class="form-field">
+                    <label for="material">Material</label>
+                    <select name="material" id="material" required>
+                        <option value="steel">Steel</option>
+                        <option value="aluminum">Aluminum</option>
+                        <option value="granite">Granite</option>
+                        <option value="marble">Marble</option>
+                        <option value="brass">Brass</option>
+                        <option value="copper">Copper</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="thickness">Thickness (mm)</label>
+                    <input type="number" name="thickness" id="thickness" value="10" min="0.1" max="100" step="0.1" required>
+                </div>
+                <div class="form-field">
+                    <label for="sheet_width">Sheet Width (mm)</label>
+                    <input type="number" name="sheet_width" id="sheet_width" value="1000" min="100" max="5000" step="1" required>
+                </div>
+                <div class="form-field">
+                    <label for="sheet_height">Sheet Height (mm)</label>
+                    <input type="number" name="sheet_height" id="sheet_height" value="1000" min="100" max="5000" step="1" required>
+                </div>
+                <div class="form-field">
+                    <label for="quality_level">Quality Level</label>
+                    <select name="quality_level" id="quality_level">
+                        <option value="rough">Rough</option>
+                        <option value="standard" selected>Standard</option>
+                        <option value="precision">Precision</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin: 2rem 0;">
+                <button type="submit" class="btn-upload" id="submitBtn" style="display: none;">
+                    🚀 Start DXF Processing
+                </button>
+            </div>
+        </form>
+
+        <div class="processing-indicator" id="processingIndicator">
+            <div class="spinner"></div>
+            <h3>Processing your DXF...</h3>
+            <p id="processingStatus">Initializing workflow...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            
+            <div class="layer-preview" id="layerPreview" style="display: none;">
+                <h4>Layer Analysis</h4>
+                <div id="layerList"></div>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+                    {% for messages in messages %}
+                        <p style="margin: 0;">{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const processingIndicator = document.getElementById('processingIndicator');
+        const progressFill = document.getElementById('progressFill');
+        const processingStatus = document.getElementById('processingStatus');
+        const layerPreview = document.getElementById('layerPreview');
+        const layerList = document.getElementById('layerList');
+
+        // File input handling
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                uploadArea.innerHTML = `
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">✅</div>
+                    <h3>File Selected: ${file.name}</h3>
+                    <p>Size: ${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <p style="color: #10b981;">Ready to process!</p>
+                `;
+                submitBtn.style.display = 'inline-block';
+            }
+        });
+
+        // Drag and drop handling
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+
+        // Form submission handling
+        document.getElementById('dxfForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Show processing indicator
+            processingIndicator.style.display = 'block';
+            submitBtn.style.display = 'none';
+            
+            // Simulate progress updates
+            const steps = [
+                'Uploading DXF...',
+                'Analyzing parameters...',
+                'Resizing DXF...',
+                'Analyzing layers...',
+                'Optimizing nesting...',
+                'Calculating toolpath...',
+                'Estimating costs...',
+                'Finalizing results...'
+            ];
+            
+            let currentStep = 0;
+            const progressInterval = setInterval(() => {
+                if (currentStep < steps.length) {
+                    processingStatus.textContent = steps[currentStep];
+                    progressFill.style.width = ((currentStep + 1) / steps.length) * 100 + '%';
+                    
+                    // Show layer preview during layer analysis
+                    if (steps[currentStep].includes('layers')) {
+                        layerPreview.style.display = 'block';
+                        simulateLayerAnalysis();
+                    }
+                    
+                    currentStep++;
+                } else {
+                    clearInterval(progressInterval);
+                }
+            }, 1500);
+            
+            // Actually submit the form
+            setTimeout(() => {
+                this.submit();
+            }, 500);
+        });
+
+        // Simulate layer analysis
+        function simulateLayerAnalysis() {
+            const layers = [
+                { name: 'Layer 0', entities: 15, color: '#FF0000' },
+                { name: 'Layer 1', entities: 8, color: '#00FF00' },
+                { name: 'Layer 2', entities: 12, color: '#0000FF' },
+                { name: 'Layer 3', entities: 5, color: '#FFFF00' }
+            ];
+            
+            layerList.innerHTML = '';
+            layers.forEach(layer => {
+                const layerItem = document.createElement('div');
+                layerItem.className = 'layer-item';
+                layerItem.innerHTML = `
+                    <div>
+                        <strong>${layer.name}</strong>
+                        <span style="color: #6b7280; margin-left: 1rem;">${layer.entities} entities</span>
+                    </div>
+                    <div style="width: 20px; height: 20px; background: ${layer.color}; border-radius: 3px;"></div>
+                `;
+                layerList.appendChild(layerItem);
+            });
+        }
+
+        // Step animation
+        function updateStep(stepNumber, status) {
+            const stepCard = document.getElementById(`step${stepNumber}`);
+            stepCard.classList.remove('active', 'completed');
+            stepCard.classList.add(status);
+        }
+
+        // Simulate step progression
+        let currentStep = 1;
+        const stepInterval = setInterval(() => {
+            if (currentStep <= 6) {
+                updateStep(currentStep, 'active');
+                if (currentStep > 1) {
+                    updateStep(currentStep - 1, 'completed');
+                }
+                currentStep++;
+            } else {
+                clearInterval(stepInterval);
+            }
+        }, 2500);
+    </script>
+</body>
+</html>

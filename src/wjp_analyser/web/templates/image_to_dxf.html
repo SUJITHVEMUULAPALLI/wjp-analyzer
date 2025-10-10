@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Image to DXF Conversion</h2>
+    <p>Upload an image file to extract contours and generate a DXF automatically.</p>
+    
+    <form method="post" action="{{ url_for('convert_image') }}" enctype="multipart/form-data" class="form-grid">
+        <div class="form-field">
+            <label for="file">Image File</label>
+            <input type="file" id="file" name="file" accept=".jpg,.jpeg,.png,.bmp,.tiff" required>
+            <small>Supported formats: JPG, JPEG, PNG, BMP, TIFF</small>
+        </div>
+
+        <h3>Image Processing Parameters</h3>
+        <div class="form-row">
+            <div class="form-field">
+                <label for="edge_threshold">Canny Sigma (0.01-0.99)</label>
+                <input type="number" id="edge_threshold" name="edge_threshold" step="0.01" min="0.01" max="0.99" value="{{ image_defaults.edge_threshold }}">
+                <small>Lower values detect more edges; higher values focus on stronger edges.</small>
+            </div>
+            <div class="form-field">
+                <label for="min_contour_area">Minimum Contour Area (px)</label>
+                <input type="number" id="min_contour_area" name="min_contour_area" min="10" step="10" value="{{ image_defaults.min_contour_area }}">
+                <small>Smaller contours will be filtered out.</small>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-field">
+                <label for="simplify_tolerance">Simplify Tolerance</label>
+                <input type="number" id="simplify_tolerance" name="simplify_tolerance" step="0.01" min="0.0001" value="{{ image_defaults.simplify_tolerance }}">
+                <small>Higher values keep fewer vertices.</small>
+            </div>
+            <div class="form-field">
+                <label for="blur_kernel_size">Blur Kernel Size</label>
+                <input type="number" id="blur_kernel_size" name="blur_kernel_size" min="3" step="2" value="{{ image_defaults.blur_kernel_size }}">
+                <small>Odd integers only (3, 5, 7, etc.)</small>
+            </div>
+        </div>
+        
+        
+
+        <h3>Optional ImageSorcery Preprocessing</h3>
+        <div class="form-row">
+            <div class="form-field">
+                <label>
+                    <input type="checkbox" name="use_mcp" value="1"> Preprocess with ImageSorcery MCP
+                </label>
+                <small>Requires ImageSorcery MCP running at http://127.0.0.1:8000/mcp</small>
+            </div>
+            <div class="form-field">
+                <label for="mcp_tool">Tool</label>
+                <select id="mcp_tool" name="mcp_tool">
+                    <option value="">-- Select a tool --</option>
+                    <option value="blur">Blur (denoise)</option>
+                    <option value="resize">Resize (cap size)</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field">
+                <label for="mcp_kernel">Blur kernel (3-9)</label>
+                <input type="number" id="mcp_kernel" name="mcp_kernel" min="3" max="9" step="2" value="3">
+            </div>
+            <div class="form-field">
+                <label for="mcp_sigma">Blur sigma</label>
+                <input type="number" id="mcp_sigma" name="mcp_sigma" step="0.1" value="1.0">
+            </div>
+            <div class="form-field">
+                <label for="mcp_maxdim">Max dimension (px)</label>
+                <input type="number" id="mcp_maxdim" name="mcp_maxdim" min="512" step="64" value="2000">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Convert to DXF</button>
+            <a class="link-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

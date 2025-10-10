@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Image Conversion Results</h2>
+    <p>Conversion ID: <code>{{ conversion_id }}</code></p>
+
+    <div class="metrics-grid">
+        <div class="metric">
+            <span class="metric-label">Contours Detected</span>
+            <span>{{ metadata.contour_count }}</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Edge Threshold</span>
+            <span>{{ metadata.parameters.edge_threshold }}</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Min Contour Area</span>
+            <span>{{ metadata.parameters.min_contour_area }} px</span>
+        </div>
+    </div>
+
+    {% if debug_images %}
+        <h3>Processing Steps</h3>
+        <div class="preview-grid">
+            {% for item in debug_images %}
+                <figure>
+                    <img src="{{ item.url }}" alt="{{ item.label }} preview">
+                    <figcaption>{{ item.label }}</figcaption>
+                </figure>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="downloads">
+        <h3>Downloads</h3>
+        <a class="download-link" href="{{ url_for('download_converted_dxf', conversion_id=conversion_id) }}">Download Converted DXF</a>
+        {% if debug_images %}
+        <a class="download-link" href="{{ url_for('download_conversion_file', conversion_id=conversion_id, file_type='image_gray') }}">Grayscale Image</a>
+        <a class="download-link" href="{{ url_for('download_conversion_file', conversion_id=conversion_id, file_type='image_threshold') }}">Threshold Mask</a>
+        <a class="download-link" href="{{ url_for('download_conversion_file', conversion_id=conversion_id, file_type='image_edges') }}">Edge Map</a>
+        {% endif %}
+    </div>
+
+    <section class="card" style="margin-top:1rem">
+        <h3>Preprocess with ImageSorcery</h3>
+        <p>Optionally run an MCP tool on the original image, then re-convert to DXF.</p>
+        <form method="post" action="{{ url_for('mcp_reprocess_conversion', conversion_id=conversion_id) }}" class="form-grid">
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="mcp_tool">Tool</label>
+                    <select id="mcp_tool" name="mcp_tool" required>
+                        <option value="blur">Blur (denoise)</option>
+                        <option value="resize">Resize (cap size)</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label for="mcp_kernel">Blur kernel</label>
+                    <input type="number" id="mcp_kernel" name="mcp_kernel" min="3" max="9" step="2" value="3">
+                </div>
+                <div class="form-field">
+                    <label for="mcp_sigma">Blur sigma</label>
+                    <input type="number" id="mcp_sigma" name="mcp_sigma" step="0.1" value="1.0">
+                </div>
+                <div class="form-field">
+                    <label for="mcp_maxdim">Max dimension (px)</label>
+                    <input type="number" id="mcp_maxdim" name="mcp_maxdim" min="512" step="64" value="2000">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit">Run MCP and Reconvert</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="next-actions">
+        <h3>Next Steps</h3>
+        <p>What would you like to do with the converted DXF?</p>
+        <div class="cta-grid">
+            <a class="cta-button" href="{{ url_for('dxf_analysis') }}?dxf_path={{ metadata.output_dxf }}">Analyze DXF</a>
+            <a class="cta-button" href="{{ url_for('nesting') }}?dxf_path={{ metadata.output_dxf }}">Add to Nesting</a>
+            <a class="cta-button" href="{{ url_for('image_to_dxf') }}">Convert Another Image</a>
+            <a class="cta-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </section>
+</section>
+{% endblock %}

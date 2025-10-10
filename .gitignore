@@ -12,13 +12,29 @@ out/
 web_output/
 oneclick_out/
 uploads/
+output/
+logs/
+utilization_reports/
+test_output/
+test_logs/
+test_cache/
+cache/
 *.png
 *.jpg
 *.jpeg
 *.bmp
 *.tiff
+*.dxf
 
 # OS
 .DS_Store
 Thumbs.db
 
+# Local secrets (do not commit real keys)
+config/api_keys.yaml
+*.env
+*.env.*
+*.secret
+wjp.env.txt
+archive/temp_files/*.env
+archive/temp_files/wjp.env.txt

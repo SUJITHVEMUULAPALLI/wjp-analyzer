@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waterjet DXF Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header class="site-header">
+        <h1><a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">Waterjet DXF Analyzer</a></h1>
+        <nav class="main-nav">
+            <a href="{{ url_for('index') }}" class="nav-link">🏠 Workflow</a>
+        </nav>
+    </header>
+    <main class="container">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-container">
+                    {% for message in messages %}
+                        <div class="flash-message">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+        <p>DXF validation, analysis, and image conversion for waterjet cutting.</p>
+    </footer>
+</body>
+</html>

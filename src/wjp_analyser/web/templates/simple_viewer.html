@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>DXF Viewer</h2>
+  <p>Preview for: <code>{{ filename }}</code></p>
+  <p>
+    <a class="link-button" href="{{ file_url }}" target="_blank">Download DXF</a>
+  </p>
+  <div style="border:1px solid #ddd; padding:8px; overflow:auto; max-height:75vh;">
+    <img src="{{ png_url }}" alt="DXF preview" style="max-width:100%; height:auto; image-rendering:auto;" />
+  </div>
+  <p style="font-size:0.9em;color:#666;">Note: This is a static preview rendered with Matplotlib; it is not an interactive CAD canvas.</p>
+{% endblock %}
+

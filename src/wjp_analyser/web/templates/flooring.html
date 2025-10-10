@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Flooring Visualizer</h2>
+    <form method="post" class="form-grid">
+        <div class="form-row">
+            <div class="form-field">
+                <label for="room_w_ft">Room Width (ft)</label>
+                <input type="number" step="0.1" id="room_w_ft" name="room_w_ft" value="10.0">
+            </div>
+            <div class="form-field">
+                <label for="room_l_ft">Room Length (ft)</label>
+                <input type="number" step="0.1" id="room_l_ft" name="room_l_ft" value="12.0">
+            </div>
+            <div class="form-field">
+                <label for="tile_size_ft">Tile Size (ft)</label>
+                <select id="tile_size_ft" name="tile_size_ft">
+                    <option value="2">2 × 2 ft</option>
+                    <option value="4">4 × 4 ft</option>
+                    <option value="6">6 × 6 ft</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-field">
+                <label for="border_in">Border Width (inches)</label>
+                <input type="number" step="0.1" id="border_in" name="border_in" value="0">
+            </div>
+            <div class="form-field">
+                <label for="rate_per_m">Rate (₹/m)</label>
+                <input type="number" step="1" id="rate_per_m" name="rate_per_m" value="825">
+            </div>
+            <div class="form-field">
+                <label for="material">Material</label>
+                <input type="text" id="material" name="material" value="Tan Brown Granite">
+            </div>
+            <div class="form-field">
+                <label for="thickness">Thickness (mm)</label>
+                <input type="number" step="1" id="thickness" name="thickness" value="25">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit">Compute</button>
+            <a class="link-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </form>
+
+    {% if result %}
+    <h3>Results</h3>
+    <div class="metrics-grid">
+        <div class="metric"><span class="metric-label">Room (mm)</span><span>{{ result.room.W_mm }} × {{ result.room.L_mm }}</span></div>
+        <div class="metric"><span class="metric-label">Tile (mm)</span><span>{{ result.tile.size_mm }} × {{ result.tile.size_mm }}</span></div>
+        <div class="metric"><span class="metric-label">Grid</span><span>{{ result.grid.cols }} × {{ result.grid.rows }} ({{ result.grid.total_tiles }} tiles)</span></div>
+        <div class="metric"><span class="metric-label">Waste (mm)</span><span>W {{ result.waste.width_mm }}, L {{ result.waste.length_mm }}</span></div>
+        <div class="metric"><span class="metric-label">Border Length</span><span>{{ result.border.length_m }} m</span></div>
+        <div class="metric"><span class="metric-label">Border Cost</span><span>₹ {{ result.border.cost_inr }}</span></div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+

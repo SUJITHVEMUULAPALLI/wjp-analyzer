@@ -1,0 +1,436 @@
+{
+  "timestamp": "2025-10-08T11:00:13.398454",
+  "total_images": 19,
+  "enhanced_conversions": 17,
+  "enhanced_analyses": 17,
+  "cost_estimations": 17,
+  "time_estimations": 17,
+  "learning_applications": 17,
+  "images": [
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 12.png",
+      "image_name": "Tile 12.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 12_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-00-22.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 6.500485181808472
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 13.png",
+      "image_name": "Tile 13.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 13_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-00-27.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 4.688248157501221
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 14.png",
+      "image_name": "Tile 14.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 14_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 4118.52,
+        "length_outer_mm": 4118.52,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-00-29.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 8237.04,
+        "estimated_cost_inr": 6589.632000000001,
+        "estimated_time_min": 8.23704
+      },
+      "learning_applied": true,
+      "execution_time": 2.37519907951355
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 16.png",
+      "image_name": "Tile 16.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 16_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-00-33.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 3.924494504928589
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 21.png",
+      "image_name": "Tile 21.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 21_converted_enhanced_fixed.dxf",
+        "entity_count": 6,
+        "open_polylines": 6
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 2548.16,
+        "length_outer_mm": 2548.16,
+        "pierces": 3,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-00-48.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 5096.32,
+        "estimated_cost_inr": 4077.056,
+        "estimated_time_min": 5.0963199999999995
+      },
+      "learning_applied": true,
+      "execution_time": 15.405170202255249
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 22.png",
+      "image_name": "Tile 22.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 22_converted_enhanced_fixed.dxf",
+        "entity_count": 9,
+        "open_polylines": 9
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 3844.93,
+        "length_outer_mm": 3844.93,
+        "pierces": 8,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-03.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 7689.86,
+        "estimated_cost_inr": 6151.888,
+        "estimated_time_min": 7.6898599999999995
+      },
+      "learning_applied": true,
+      "execution_time": 14.863802909851074
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 31.png",
+      "image_name": "Tile 31.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 31_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 3903.65,
+        "length_outer_mm": 3903.65,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-04.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 7807.3,
+        "estimated_cost_inr": 6245.84,
+        "estimated_time_min": 7.807300000000001
+      },
+      "learning_applied": true,
+      "execution_time": 0.503399133682251
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 33.png",
+      "image_name": "Tile 33.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 33_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 4050.74,
+        "length_outer_mm": 4050.74,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-05.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 8101.48,
+        "estimated_cost_inr": 6481.184,
+        "estimated_time_min": 8.101479999999999
+      },
+      "learning_applied": true,
+      "execution_time": 0.9933652877807617
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 44.png",
+      "image_name": "Tile 44.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 44_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-06.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 0.7630136013031006
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 46.png",
+      "image_name": "Tile 46.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 46_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-19.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 13.269519805908203
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile45.png",
+      "image_name": "Tile45.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile45_converted_enhanced_fixed.dxf",
+        "entity_count": 2,
+        "open_polylines": 2
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-39.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 19.94481086730957
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tole47.png",
+      "image_name": "Tole47.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tole47_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-44.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 5.259942531585693
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Wall 26.png",
+      "image_name": "Wall 26.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Wall 26_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 4002.39,
+        "length_outer_mm": 4002.39,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-47.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 8004.78,
+        "estimated_cost_inr": 6403.8240000000005,
+        "estimated_time_min": 8.00478
+      },
+      "learning_applied": true,
+      "execution_time": 0.4503490924835205
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Wall 29.png",
+      "image_name": "Wall 29.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Wall 29_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 3926.39,
+        "length_outer_mm": 3926.39,
+        "pierces": 1,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-47.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 7852.78,
+        "estimated_cost_inr": 6282.224,
+        "estimated_time_min": 7.85278
+      },
+      "learning_applied": true,
+      "execution_time": 0.543114423751831
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 9.png",
+      "image_name": "Tile 9.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 9_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-53.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 5.5098772048950195
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 10.png",
+      "image_name": "Tile 10.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 10_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-01-56.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 3.8374438285827637
+    },
+    {
+      "image_path": "C:\\Users\\vemul\\Downloads\\samples\\Tile 11.png",
+      "image_name": "Tile 11.png",
+      "enhanced_conversion": {
+        "success": true,
+        "dxf_path": "C:\\WJP ANALYSER\\output\\dxf\\Tile 11_converted_enhanced_fixed.dxf",
+        "entity_count": 1,
+        "open_polylines": 1
+      },
+      "enhanced_analysis": {
+        "success": true,
+        "length_internal_mm": 0.0,
+        "length_outer_mm": 0.0,
+        "pierces": 0,
+        "report_path": "C:\\WJP ANALYSER\\output\\reports\\report_2025-10-08_11-02-01.json"
+      },
+      "cost_estimation": {
+        "success": true,
+        "total_length_mm": 0.0,
+        "estimated_cost_inr": 0.0,
+        "estimated_time_min": 0.0
+      },
+      "learning_applied": true,
+      "execution_time": 4.276889801025391
+    }
+  ]
+}

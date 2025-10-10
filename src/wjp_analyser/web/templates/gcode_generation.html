@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>G-code Generation</h2>
+    <p>Generate machine-ready G-code from DXF files with custom cutting parameters.</p>
+    
+    <form method="post" action="{{ url_for('generate_gcode') }}" enctype="multipart/form-data" class="form-grid">
+        <div class="form-field">
+            <label for="file">DXF File</label>
+            <input type="file" id="file" name="file" accept=".dxf" required>
+            <small>Upload a DXF file for G-code generation</small>
+        </div>
+
+        <h3>Cutting Parameters</h3>
+        <div class="form-row">
+            <div class="form-field">
+                <label for="feed">Feed Rate (mm/min)</label>
+                <input type="number" id="feed" name="feed" step="10" min="100" value="{{ gcode_defaults.feed }}">
+            </div>
+            <div class="form-field">
+                <label for="m_on">M-code ON</label>
+                <input type="text" id="m_on" name="m_on" value="{{ gcode_defaults.m_on }}">
+            </div>
+            <div class="form-field">
+                <label for="m_off">M-code OFF</label>
+                <input type="text" id="m_off" name="m_off" value="{{ gcode_defaults.m_off }}">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-field">
+                <label for="pierce_ms">Pierce Delay (ms)</label>
+                <input type="number" id="pierce_ms" name="pierce_ms" step="50" min="0" value="{{ gcode_defaults.pierce_ms }}">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Generate G-code</button>
+            <a class="link-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </form>
+</section>
+
+{% if gcode_results %}
+<section class="card">
+    <h2>G-code Generation Results</h2>
+    <p>Generation ID: <code>{{ gcode_id }}</code></p>
+    
+    <div class="metrics-grid">
+        <div class="metric">
+            <span class="metric-label">Feed Rate</span>
+            <span>{{ gcode_results.feed }} mm/min</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">M-code ON</span>
+            <span>{{ gcode_results.m_on }}</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">M-code OFF</span>
+            <span>{{ gcode_results.m_off }}</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Pierce Delay</span>
+            <span>{{ gcode_results.pierce_ms }} ms</span>
+        </div>
+        {% if gcode_results.polygon_count %}
+        <div class="metric">
+            <span class="metric-label">Polygons</span>
+            <span>{{ gcode_results.polygon_count }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="downloads">
+        <h3>Downloads</h3>
+        <a class="download-link" href="{{ url_for('download_gcode', gcode_id=gcode_id) }}">Download G-code (NC)</a>
+        <a class="download-link" href="{{ url_for('download_gcode_report', gcode_id=gcode_id) }}">Download Generation Report</a>
+    </div>
+
+    <section class="next-actions">
+        <h3>Next Steps</h3>
+        <p>Your G-code is ready for the machine!</p>
+        <div class="cta-grid">
+            <a class="cta-button" href="{{ url_for('gcode_generation') }}">Generate Another G-code</a>
+            <a class="cta-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </section>
+</section>
+{% endif %}
+{% endblock %}

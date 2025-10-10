@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WJP Analyser - Interactive Object Selection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .panel h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            background-color: #f8f9ff;
+            border-color: #5a6fd8;
+        }
+
+        .upload-area.dragover {
+            background-color: #e8f0ff;
+            border-color: #4c63d2;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .object-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+
+        .object-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s ease;
+        }
+
+        .object-item:hover {
+            background-color: #f8f9ff;
+        }
+
+        .object-item.selected {
+            background-color: #e8f0ff;
+            border-left: 4px solid #667eea;
+        }
+
+        .object-checkbox {
+            margin-right: 12px;
+        }
+
+        .object-info {
+            flex: 1;
+        }
+
+        .object-id {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .object-details {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .object-type {
+            display: inline-block;
+            background-color: #f0f0f0;
+            color: #333;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-right: 8px;
+        }
+
+        .object-complexity {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-right: 8px;
+        }
+
+        .complexity-simple { background-color: #d4edda; color: #155724; }
+        .complexity-moderate { background-color: #fff3cd; color: #856404; }
+        .complexity-complex { background-color: #f8d7da; color: #721c24; }
+        .complexity-very_complex { background-color: #d1ecf1; color: #0c5460; }
+
+        .selection-tools {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background-color: #667eea;
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .layer-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s ease;
+        }
+
+        .layer-item:hover {
+            background-color: #f8f9ff;
+        }
+
+        .layer-info {
+            flex: 1;
+        }
+
+        .layer-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .layer-details {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .layer-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .btn-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .comparison-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .best-algorithm {
+            background-color: #d4edda !important;
+            font-weight: bold;
+        }
+
+        .utilization-metric {
+            display: inline-block;
+            margin: 10px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .utilization-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #28a745;
+        }
+
+        .utilization-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .cost-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .cost-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .cost-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .cost-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            margin-bottom: 10px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .filter-group input, .filter-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>WJP Analyser</h1>
+        <p>Interactive Object Selection & Layer Management</p>
+    </div>
+
+    <div class="container">
+        <div class="upload-area" id="uploadArea">
+            <h3>Upload DXF File</h3>
+            <p>Drag and drop your DXF file here or click to browse</p>
+            <input type="file" id="fileInput" accept=".dxf" style="display: none;">
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                Choose DXF File
+            </button>
+        </div>
+
+        <div id="mainContent" style="display: none;">
+            <div class="main-content">
+                <!-- Object Selection Panel -->
+                <div class="panel">
+                    <h2>Object Selection</h2>
+                    
+                    <div class="selection-tools">
+                        <button class="btn btn-primary" onclick="selectAllObjects()">Select All</button>
+                        <button class="btn btn-secondary" onclick="deselectAllObjects()">Deselect All</button>
+                        <button class="btn btn-success" onclick="showFilters()">Filter Objects</button>
+                        <button class="btn btn-primary" onclick="exportSelection()">Export Selection</button>
+                    </div>
+
+                    <div class="filters" id="filters" style="display: none;">
+                        <div class="filter-group">
+                            <label>Object Type:</label>
+                            <select id="typeFilter" multiple>
+                                <option value="polygon">Polygon</option>
+                                <option value="circle">Circle</option>
+                                <option value="arc">Arc</option>
+                                <option value="line">Line</option>
+                                <option value="polyline">Polyline</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Complexity:</label>
+                            <select id="complexityFilter" multiple>
+                                <option value="simple">Simple</option>
+                                <option value="moderate">Moderate</option>
+                                <option value="complex">Complex</option>
+                                <option value="very_complex">Very Complex</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Min Area:</label>
+                            <input type="number" id="minArea" step="0.01">
+                        </div>
+                        <div class="filter-group">
+                            <label>Max Area:</label>
+                            <input type="number" id="maxArea" step="0.01">
+                        </div>
+                        <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                        <button class="btn btn-secondary" onclick="clearFilters()">Clear Filters</button>
+                    </div>
+
+                    <div class="object-list" id="objectList">
+                        <!-- Objects will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Layer Management Panel -->
+                <div class="panel">
+                    <h2>Layer Management</h2>
+                    
+                    <div class="selection-tools">
+                        <button class="btn btn-primary" onclick="showCreateLayerModal()">Create Layer</button>
+                        <button class="btn btn-success" onclick="assignSelectedToLayer()">Assign Selected</button>
+                        <button class="btn btn-secondary" onclick="showLayerStats()">Layer Statistics</button>
+                        <button class="btn btn-warning" onclick="showNestingOptions()">Nesting Options</button>
+                    </div>
+
+                    <div class="layer-list" id="layerList">
+                        <!-- Layers will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Panel -->
+            <div class="stats-grid" id="statsGrid">
+                <!-- Statistics will be loaded here -->
+            </div>
+        </div>
+
+        <div id="loadingMessage" class="loading" style="display: none;">
+            <h3>Processing DXF File...</h3>
+            <p>Please wait while we analyze your file.</p>
+        </div>
+    </div>
+
+    <!-- Create Layer Modal -->
+    <div id="createLayerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCreateLayerModal()">&times;</span>
+            <h2>Create New Layer</h2>
+            <form id="createLayerForm">
+                <div class="filter-group">
+                    <label>Layer Name:</label>
+                    <input type="text" id="layerName" required>
+                </div>
+                <div class="filter-group">
+                    <label>Layer Type:</label>
+                    <select id="layerType" required>
+                        <option value="base">Base Layer</option>
+                        <option value="nested">Nested Layer</option>
+                        <option value="custom">Custom Layer</option>
+                        <option value="priority">Priority Layer</option>
+                        <option value="material">Material Layer</option>
+                        <option value="complexity">Complexity Layer</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Description:</label>
+                    <textarea id="layerDescription" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Layer</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assign to Layer Modal -->
+    <div id="assignLayerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAssignLayerModal()">&times;</span>
+            <h2>Assign Objects to Layer</h2>
+            <div class="filter-group">
+                <label>Select Layer:</label>
+                <select id="assignLayerSelect">
+                    <!-- Options will be populated -->
+                </select>
+            </div>
+            <p id="selectedCount"></p>
+            <button class="btn btn-primary" onclick="confirmAssignToLayer()">Assign Objects</button>
+        </div>
+    </div>
+
+    <!-- Nesting Options Modal -->
+    <div id="nestingOptionsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeNestingOptionsModal()">&times;</span>
+            <h2>Nesting Optimization Options</h2>
+            
+            <div class="filter-group">
+                <label>Algorithm:</label>
+                <select id="nestingAlgorithm">
+                    <option value="genetic">Genetic Algorithm</option>
+                    <option value="simulated_annealing">Simulated Annealing</option>
+                    <option value="bottom_left">Bottom-Left Fill</option>
+                    <option value="nfp">No-Fit Polygon</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Max Iterations:</label>
+                <input type="number" id="maxIterations" value="1000" min="100" max="10000">
+            </div>
+            
+            <div class="filter-group">
+                <label>Time Limit (seconds):</label>
+                <input type="number" id="timeLimit" value="300" min="10" max="1800">
+            </div>
+            
+            <div class="filter-group">
+                <label>Rotation Enabled:</label>
+                <input type="checkbox" id="rotationEnabled" checked>
+            </div>
+            
+            <div class="filter-group">
+                <label>Material Utilization Target:</label>
+                <input type="range" id="utilizationTarget" min="0.5" max="1.0" step="0.05" value="0.85">
+                <span id="utilizationValue">85%</span>
+            </div>
+            
+            <button class="btn btn-primary" onclick="applyNestingSettings()">Apply Settings</button>
+        </div>
+    </div>
+
+    <!-- Optimization Progress Modal -->
+    <div id="optimizationProgressModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeOptimizationProgressModal()">&times;</span>
+            <h2>Optimization Progress</h2>
+            
+            <div id="optimizationProgress">
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <p id="progressText">Initializing optimization...</p>
+                <p id="progressDetails"></p>
+            </div>
+            
+            <div id="optimizationResults" style="display: none;">
+                <h3>Optimization Results</h3>
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Algorithm Comparison Modal -->
+    <div id="algorithmComparisonModal" class="modal">
+        <div class="modal-content" style="width: 90%; max-width: 1000px;">
+            <span class="close" onclick="closeAlgorithmComparisonModal()">&times;</span>
+            <h2>Algorithm Comparison</h2>
+            
+            <div id="comparisonResults">
+                <!-- Comparison results will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Utilization Report Modal -->
+    <div id="utilizationReportModal" class="modal">
+        <div class="modal-content" style="width: 90%; max-width: 1000px;">
+            <span class="close" onclick="closeUtilizationReportModal()">&times;</span>
+            <h2>Material Utilization Report</h2>
+            
+            <div id="reportContent">
+                <!-- Report content will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let objects = [];
+        let layers = [];
+        let selectedObjects = new Set();
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                uploadFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadFile(e.target.files[0]);
+            }
+        });
+
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('mainContent').style.display = 'none';
+
+            fetch('/api/upload-dxf', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loadingMessage').style.display = 'none';
+                
+                if (data.success) {
+                    objects = data.objects;
+                    loadObjects();
+                    loadLayers();
+                    loadStatistics();
+                    document.getElementById('mainContent').style.display = 'block';
+                } else {
+                    showError(data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loadingMessage').style.display = 'none';
+                showError('Error uploading file: ' + error.message);
+            });
+        }
+
+        function loadObjects() {
+            const objectList = document.getElementById('objectList');
+            objectList.innerHTML = '';
+
+            objects.forEach(obj => {
+                const objectItem = document.createElement('div');
+                objectItem.className = 'object-item';
+                if (obj.selected) {
+                    objectItem.classList.add('selected');
+                    selectedObjects.add(obj.object_id);
+                }
+
+                objectItem.innerHTML = `
+                    <input type="checkbox" class="object-checkbox" ${obj.selected ? 'checked' : ''} 
+                           onchange="toggleObjectSelection('${obj.object_id}')">
+                    <div class="object-info">
+                        <div class="object-id">${obj.object_id}</div>
+                        <div class="object-details">
+                            <span class="object-type">${obj.object_type}</span>
+                            <span class="object-complexity complexity-${obj.complexity}">${obj.complexity}</span>
+                            Area: ${obj.area.toFixed(2)} | Perimeter: ${obj.perimeter.toFixed(2)}
+                            ${obj.assigned_layer ? `| Layer: ${obj.assigned_layer}` : ''}
+                        </div>
+                    </div>
+                `;
+
+                objectList.appendChild(objectItem);
+            });
+        }
+
+        function loadLayers() {
+            fetch('/api/layers')
+            .then(response => response.json())
+            .then(data => {
+                layers = data;
+                const layerList = document.getElementById('layerList');
+                layerList.innerHTML = '';
+
+                data.forEach(layer => {
+                    const layerItem = document.createElement('div');
+                    layerItem.className = 'layer-item';
+
+                    layerItem.innerHTML = `
+                        <div class="layer-info">
+                            <div class="layer-name">${layer.name}</div>
+                            <div class="layer-details">
+                                Type: ${layer.layer_type} | Objects: ${layer.object_count} | 
+                                Area: ${layer.total_area.toFixed(2)}
+                            </div>
+                        </div>
+                        <div class="layer-actions">
+                            <button class="btn btn-small btn-primary" onclick="viewLayerDetails('${layer.layer_id}')">View</button>
+                            <button class="btn btn-small btn-success" onclick="optimizeLayer('${layer.layer_id}')">Optimize</button>
+                            <button class="btn btn-small btn-info" onclick="compareAlgorithms('${layer.layer_id}')">Compare</button>
+                            <button class="btn btn-small btn-warning" onclick="generateReport('${layer.layer_id}')">Report</button>
+                            <button class="btn btn-small btn-secondary" onclick="duplicateLayer('${layer.layer_id}')">Duplicate</button>
+                            <button class="btn btn-small btn-danger" onclick="deleteLayer('${layer.layer_id}')">Delete</button>
+                        </div>
+                    `;
+
+                    layerList.appendChild(layerItem);
+                });
+            })
+            .catch(error => showError('Error loading layers: ' + error.message));
+        }
+
+        function loadStatistics() {
+            fetch('/api/statistics')
+            .then(response => response.json())
+            .then(data => {
+                const statsGrid = document.getElementById('statsGrid');
+                statsGrid.innerHTML = '';
+
+                const stats = data.object_statistics;
+                const layerSummary = data.layer_summary;
+
+                const statCards = [
+                    { label: 'Total Objects', value: stats.total_objects },
+                    { label: 'Selected Objects', value: stats.selected_objects },
+                    { label: 'Total Area', value: stats.total_area.toFixed(2) },
+                    { label: 'Total Layers', value: layerSummary.total_layers || 0 }
+                ];
+
+                statCards.forEach(stat => {
+                    const card = document.createElement('div');
+                    card.className = 'stat-card';
+                    card.innerHTML = `
+                        <div class="stat-value">${stat.value}</div>
+                        <div class="stat-label">${stat.label}</div>
+                    `;
+                    statsGrid.appendChild(card);
+                });
+            })
+            .catch(error => showError('Error loading statistics: ' + error.message));
+        }
+
+        function toggleObjectSelection(objectId) {
+            const action = selectedObjects.has(objectId) ? 'deselect' : 'select';
+            
+            fetch(`/api/objects/${objectId}/select`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: action })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.selected) {
+                        selectedObjects.add(objectId);
+                    } else {
+                        selectedObjects.delete(objectId);
+                    }
+                    loadObjects();
+                    loadStatistics();
+                }
+            })
+            .catch(error => showError('Error toggling selection: ' + error.message));
+        }
+
+        function selectAllObjects() {
+            fetch('/api/objects/select-all', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadObjects();
+                    loadStatistics();
+                }
+            })
+            .catch(error => showError('Error selecting all: ' + error.message));
+        }
+
+        function deselectAllObjects() {
+            fetch('/api/objects/deselect-all', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    selectedObjects.clear();
+                    loadObjects();
+                    loadStatistics();
+                }
+            })
+            .catch(error => showError('Error deselecting all: ' + error.message));
+        }
+
+        function showFilters() {
+            const filters = document.getElementById('filters');
+            filters.style.display = filters.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function applyFilters() {
+            const filters = {
+                object_types: Array.from(document.getElementById('typeFilter').selectedOptions).map(o => o.value),
+                complexities: Array.from(document.getElementById('complexityFilter').selectedOptions).map(o => o.value),
+                min_area: document.getElementById('minArea').value ? parseFloat(document.getElementById('minArea').value) : null,
+                max_area: document.getElementById('maxArea').value ? parseFloat(document.getElementById('maxArea').value) : null
+            };
+
+            fetch('/api/objects/filter', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(filters)
+            })
+            .then(response => response.json())
+            .then(data => {
+                objects = data;
+                loadObjects();
+            })
+            .catch(error => showError('Error applying filters: ' + error.message));
+        }
+
+        function clearFilters() {
+            document.getElementById('typeFilter').selectedIndex = -1;
+            document.getElementById('complexityFilter').selectedIndex = -1;
+            document.getElementById('minArea').value = '';
+            document.getElementById('maxArea').value = '';
+            
+            fetch('/api/objects')
+            .then(response => response.json())
+            .then(data => {
+                objects = data;
+                loadObjects();
+            })
+            .catch(error => showError('Error clearing filters: ' + error.message));
+        }
+
+        function showCreateLayerModal() {
+            document.getElementById('createLayerModal').style.display = 'block';
+        }
+
+        function closeCreateLayerModal() {
+            document.getElementById('createLayerModal').style.display = 'none';
+            document.getElementById('createLayerForm').reset();
+        }
+
+        function showAssignLayerModal() {
+            const modal = document.getElementById('assignLayerModal');
+            const select = document.getElementById('assignLayerSelect');
+            const count = document.getElementById('selectedCount');
+            
+            select.innerHTML = '';
+            layers.forEach(layer => {
+                const option = document.createElement('option');
+                option.value = layer.layer_id;
+                option.textContent = layer.name;
+                select.appendChild(option);
+            });
+            
+            count.textContent = `${selectedObjects.size} objects selected`;
+            modal.style.display = 'block';
+        }
+
+        function closeAssignLayerModal() {
+            document.getElementById('assignLayerModal').style.display = 'none';
+        }
+
+        function assignSelectedToLayer() {
+            if (selectedObjects.size === 0) {
+                showError('No objects selected');
+                return;
+            }
+            showAssignLayerModal();
+        }
+
+        function confirmAssignToLayer() {
+            const layerId = document.getElementById('assignLayerSelect').value;
+            if (!layerId) {
+                showError('Please select a layer');
+                return;
+            }
+
+            fetch(`/api/layers/${layerId}/objects`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ object_ids: Array.from(selectedObjects) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeAssignLayerModal();
+                    loadObjects();
+                    loadLayers();
+                    showSuccess(`Assigned ${data.assigned_count} objects to layer`);
+                } else {
+                    showError('Error assigning objects to layer');
+                }
+            })
+            .catch(error => showError('Error assigning objects: ' + error.message));
+        }
+
+        function deleteLayer(layerId) {
+            if (confirm('Are you sure you want to delete this layer?')) {
+                fetch(`/api/layers/${layerId}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadLayers();
+                        loadStatistics();
+                        showSuccess('Layer deleted successfully');
+                    } else {
+                        showError('Error deleting layer');
+                    }
+                })
+                .catch(error => showError('Error deleting layer: ' + error.message));
+            }
+        }
+
+        function duplicateLayer(layerId) {
+            const layer = layers.find(l => l.layer_id === layerId);
+            if (layer) {
+                const newName = prompt('Enter name for duplicated layer:', `${layer.name} Copy`);
+                if (newName) {
+                    fetch(`/api/layers/${layerId}/duplicate`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ name: newName })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            loadLayers();
+                            showSuccess('Layer duplicated successfully');
+                        } else {
+                            showError('Error duplicating layer');
+                        }
+                    })
+                    .catch(error => showError('Error duplicating layer: ' + error.message));
+                }
+            }
+        }
+
+        function exportSelection() {
+            if (selectedObjects.size === 0) {
+                showError('No objects selected for export');
+                return;
+            }
+
+            fetch('/api/export/selection', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccess('Selection exported successfully');
+                } else {
+                    showError('Error exporting selection');
+                }
+            })
+            .catch(error => showError('Error exporting selection: ' + error.message));
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.container').firstChild);
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success';
+            successDiv.textContent = message;
+            document.querySelector('.container').insertBefore(successDiv, document.querySelector('.container').firstChild);
+            setTimeout(() => successDiv.remove(), 3000);
+        }
+
+        function showLayerStats() {
+            if (layers.length === 0) {
+                alert('No layers available');
+                return;
+            }
+
+            const stats = calculateLayerStats();
+            const statsHtml = `
+                <h3>Layer Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">${layers.length}</div>
+                        <div class="stat-label">Total Layers</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${stats.totalObjects}</div>
+                        <div class="stat-label">Total Objects</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${stats.totalArea.toFixed(2)}</div>
+                        <div class="stat-label">Total Area</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${stats.averageComplexity.toFixed(1)}</div>
+                        <div class="stat-label">Avg Complexity</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('layerStatsContent').innerHTML = statsHtml;
+            document.getElementById('layerStatsModal').style.display = 'block';
+        }
+
+        function showNestingOptions() {
+            document.getElementById('nestingOptionsModal').style.display = 'block';
+        }
+
+        function closeNestingOptionsModal() {
+            document.getElementById('nestingOptionsModal').style.display = 'none';
+        }
+
+        function applyNestingSettings() {
+            const settings = {
+                algorithm: document.getElementById('nestingAlgorithm').value,
+                max_iterations: parseInt(document.getElementById('maxIterations').value),
+                time_limit: parseInt(document.getElementById('timeLimit').value),
+                rotation_enabled: document.getElementById('rotationEnabled').checked,
+                utilization_target: parseFloat(document.getElementById('utilizationTarget').value)
+            };
+            
+            // Store settings for use in optimization
+            window.nestingSettings = settings;
+            
+            alert('Nesting settings applied successfully!');
+            closeNestingOptionsModal();
+        }
+
+        function optimizeLayer(layerId) {
+            const layer = layers.find(l => l.layer_id === layerId);
+            if (!layer) {
+                alert('Layer not found');
+                return;
+            }
+
+            if (layer.object_count === 0) {
+                alert('No objects in layer to optimize');
+                return;
+            }
+
+            // Show progress modal
+            document.getElementById('optimizationProgressModal').style.display = 'block';
+            
+            // Start optimization
+            fetch(`/api/layers/${layerId}/optimize`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(window.nestingSettings || {})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showOptimizationResults(data.result);
+                } else {
+                    alert('Optimization failed: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Optimization failed: ' + error.message);
+            });
+        }
+
+        function compareAlgorithms(layerId) {
+            const layer = layers.find(l => l.layer_id === layerId);
+            if (!layer) {
+                alert('Layer not found');
+                return;
+            }
+
+            if (layer.object_count === 0) {
+                alert('No objects in layer to compare');
+                return;
+            }
+
+            // Show comparison modal
+            document.getElementById('algorithmComparisonModal').style.display = 'block';
+            
+            // Start comparison
+            fetch(`/api/layers/${layerId}/compare-algorithms`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(window.nestingSettings || {})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlgorithmComparison(data.comparison);
+                } else {
+                    alert('Algorithm comparison failed: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Algorithm comparison failed: ' + error.message);
+            });
+        }
+
+        function generateReport(layerId) {
+            const layer = layers.find(l => l.layer_id === layerId);
+            if (!layer) {
+                alert('Layer not found');
+                return;
+            }
+
+            if (layer.object_count === 0) {
+                alert('No objects in layer to generate report');
+                return;
+            }
+
+            // Show report modal
+            document.getElementById('utilizationReportModal').style.display = 'block';
+            
+            // Generate report
+            fetch(`/api/layers/${layerId}/utilization-report`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showUtilizationReport(data.report);
+                } else {
+                    alert('Report generation failed: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Report generation failed: ' + error.message);
+            });
+        }
+
+        function showOptimizationResults(result) {
+            const resultsHtml = `
+                <div class="utilization-metric">
+                    <div class="utilization-value">${(result.utilization * 100).toFixed(1)}%</div>
+                    <div class="utilization-label">Material Utilization</div>
+                </div>
+                <div class="utilization-metric">
+                    <div class="utilization-value">${result.total_cost.toFixed(2)}</div>
+                    <div class="utilization-label">Total Cost</div>
+                </div>
+                <div class="utilization-metric">
+                    <div class="utilization-value">${result.cutting_time.toFixed(1)}s</div>
+                    <div class="utilization-label">Cutting Time</div>
+                </div>
+                <div class="utilization-metric">
+                    <div class="utilization-value">${result.waste_area.toFixed(2)}</div>
+                    <div class="utilization-label">Waste Area</div>
+                </div>
+                
+                <h4>Cost Breakdown</h4>
+                <div class="cost-breakdown">
+                    <div class="cost-item">
+                        <div class="cost-value">$${result.cost_breakdown.material_cost.toFixed(2)}</div>
+                        <div class="cost-label">Material Cost</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">$${result.cost_breakdown.cutting_cost.toFixed(2)}</div>
+                        <div class="cost-label">Cutting Cost</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">$${result.cost_breakdown.setup_cost.toFixed(2)}</div>
+                        <div class="cost-label">Setup Cost</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">$${result.cost_breakdown.waste_cost.toFixed(2)}</div>
+                        <div class="cost-label">Waste Cost</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('resultsContent').innerHTML = resultsHtml;
+            document.getElementById('optimizationResults').style.display = 'block';
+        }
+
+        function showAlgorithmComparison(comparison) {
+            let tableHtml = `
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Algorithm</th>
+                            <th>Utilization</th>
+                            <th>Total Cost</th>
+                            <th>Cutting Time</th>
+                            <th>Waste Area</th>
+                            <th>Iterations</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            comparison.results.forEach((result, index) => {
+                const isBest = index === comparison.best_algorithm_index;
+                const rowClass = isBest ? 'best-algorithm' : '';
+                
+                tableHtml += `
+                    <tr class="${rowClass}">
+                        <td>${result.algorithm}</td>
+                        <td>${(result.utilization * 100).toFixed(1)}%</td>
+                        <td>$${result.total_cost.toFixed(2)}</td>
+                        <td>${result.cutting_time.toFixed(1)}s</td>
+                        <td>${result.waste_area.toFixed(2)}</td>
+                        <td>${result.iterations}</td>
+                    </tr>
+                `;
+            });
+            
+            tableHtml += `
+                    </tbody>
+                </table>
+                
+                <h4>Best Algorithm: ${comparison.best_algorithm}</h4>
+                <p>Recommended algorithm based on overall performance metrics.</p>
+            `;
+            
+            document.getElementById('comparisonResults').innerHTML = tableHtml;
+        }
+
+        function showUtilizationReport(report) {
+            const reportHtml = `
+                <h3>Material Utilization Analysis</h3>
+                
+                <div class="utilization-metric">
+                    <div class="utilization-value">${(report.utilization * 100).toFixed(1)}%</div>
+                    <div class="utilization-label">Overall Utilization</div>
+                </div>
+                
+                <h4>Detailed Metrics</h4>
+                <div class="cost-breakdown">
+                    <div class="cost-item">
+                        <div class="cost-value">${report.material_area.toFixed(2)}</div>
+                        <div class="cost-label">Material Area</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">${report.object_area.toFixed(2)}</div>
+                        <div class="cost-label">Object Area</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">${report.waste_area.toFixed(2)}</div>
+                        <div class="cost-label">Waste Area</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">${report.efficiency_score.toFixed(1)}</div>
+                        <div class="cost-label">Efficiency Score</div>
+                    </div>
+                </div>
+                
+                <h4>Cost Analysis</h4>
+                <div class="cost-breakdown">
+                    <div class="cost-item">
+                        <div class="cost-value">$${report.total_cost.toFixed(2)}</div>
+                        <div class="cost-label">Total Cost</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">$${report.cost_per_unit.toFixed(2)}</div>
+                        <div class="cost-label">Cost per Unit</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">$${report.waste_cost.toFixed(2)}</div>
+                        <div class="cost-label">Waste Cost</div>
+                    </div>
+                    <div class="cost-item">
+                        <div class="cost-value">${report.cost_savings.toFixed(1)}%</div>
+                        <div class="cost-label">Cost Savings</div>
+                    </div>
+                </div>
+                
+                <h4>Recommendations</h4>
+                <ul>
+                    ${report.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                </ul>
+            `;
+            
+            document.getElementById('reportContent').innerHTML = reportHtml;
+        }
+
+        function closeOptimizationProgressModal() {
+            document.getElementById('optimizationProgressModal').style.display = 'none';
+        }
+
+        function closeAlgorithmComparisonModal() {
+            document.getElementById('algorithmComparisonModal').style.display = 'none';
+        }
+
+        function closeUtilizationReportModal() {
+            document.getElementById('utilizationReportModal').style.display = 'none';
+        }
+
+        // Update utilization target display
+        document.getElementById('utilizationTarget').addEventListener('input', function() {
+            document.getElementById('utilizationValue').textContent = Math.round(this.value * 100) + '%';
+        });
+
+        // Handle form submission
+        document.getElementById('createLayerForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('layerName').value,
+                layer_type: document.getElementById('layerType').value,
+                description: document.getElementById('layerDescription').value
+            };
+
+            fetch('/api/layers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeCreateLayerModal();
+                    loadLayers();
+                    showSuccess('Layer created successfully');
+                } else {
+                    showError('Error creating layer');
+                }
+            })
+            .catch(error => showError('Error creating layer: ' + error.message));
+        });
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const createModal = document.getElementById('createLayerModal');
+            const assignModal = document.getElementById('assignLayerModal');
+            
+            if (event.target === createModal) {
+                closeCreateLayerModal();
+            }
+            if (event.target === assignModal) {
+                closeAssignLayerModal();
+            }
+        }
+    </script>
+</body>
+</html>

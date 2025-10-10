@@ -1,0 +1,85 @@
+# Advanced Toolpath Configuration Presets
+# ======================================
+
+# Standard Optimization (Default)
+standard:
+  kerf_compensation: 1.1
+  rapid_speed: 10000.0
+  cutting_speed: 1200.0
+  pierce_time: 0.5
+  min_rapid_distance: 5.0
+  optimize_rapids: true
+  optimize_direction: true
+  entry_strategy: "tangent"
+
+# High-Speed Optimization
+high_speed:
+  kerf_compensation: 1.1
+  rapid_speed: 15000.0
+  cutting_speed: 2000.0
+  pierce_time: 0.3
+  min_rapid_distance: 5.0
+  optimize_rapids: true
+  optimize_direction: true
+  entry_strategy: "perpendicular"
+
+# Precision Optimization
+precision:
+  kerf_compensation: 0.8
+  rapid_speed: 8000.0
+  cutting_speed: 800.0
+  pierce_time: 0.8
+  min_rapid_distance: 3.0
+  optimize_rapids: true
+  optimize_direction: true
+  entry_strategy: "angle"
+
+# Material-Specific Presets
+materials:
+  granite:
+    kerf_compensation: 1.1
+    rapid_speed: 10000.0
+    cutting_speed: 1200.0
+    pierce_time: 0.5
+    entry_strategy: "tangent"
+  
+  marble:
+    kerf_compensation: 1.0
+    rapid_speed: 12000.0
+    cutting_speed: 1500.0
+    pierce_time: 0.4
+    entry_strategy: "tangent"
+  
+  steel:
+    kerf_compensation: 0.5
+    rapid_speed: 8000.0
+    cutting_speed: 600.0
+    pierce_time: 1.0
+    entry_strategy: "perpendicular"
+  
+  aluminum:
+    kerf_compensation: 0.3
+    rapid_speed: 15000.0
+    cutting_speed: 2000.0
+    pierce_time: 0.2
+    entry_strategy: "tangent"
+
+# Thickness-Specific Presets
+thickness:
+  thin_10mm:
+    kerf_compensation: 0.8
+    rapid_speed: 12000.0
+    cutting_speed: 1500.0
+    pierce_time: 0.3
+  
+  medium_25mm:
+    kerf_compensation: 1.1
+    rapid_speed: 10000.0
+    cutting_speed: 1200.0
+    pierce_time: 0.5
+  
+  thick_50mm:
+    kerf_compensation: 1.5
+    rapid_speed: 8000.0
+    cutting_speed: 800.0
+    pierce_time: 0.8

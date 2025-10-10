@@ -1,0 +1,14 @@
+{
+    "commands":  [
+                     {
+                         "name":  "Clean DXF",
+                         "command":  "python tools/advanced_dxf_cleaner_v2.py input.dxf -o cleaned_output.dxf -l balanced",
+                         "description":  "Runs the advanced DXF cleaner on input.dxf and saves cleaned_output.dxf"
+                     },
+                     {
+                         "command":  "python path_optimizer.py",
+                         "name":  "Optimize DXF Path",
+                         "description":  "Reorders LWPOLYLINEs into optimized cut order and writes optimized_order.dxf"
+                     }
+                 ]
+}
