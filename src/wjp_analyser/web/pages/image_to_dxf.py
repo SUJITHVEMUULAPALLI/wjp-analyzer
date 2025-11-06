@@ -12,8 +12,11 @@ import matplotlib.pyplot as plt
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _SRC_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
+_WS_ROOT = os.path.abspath(os.path.join(_SRC_DIR, ".."))
 if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
+if _WS_ROOT not in sys.path:
+    sys.path.insert(0, _WS_ROOT)
 
 try:
     from wjp_analyser.image_processing.converters.opencv_converter import (
@@ -251,11 +254,17 @@ if confirmed:
         morph_ksize = st.number_input("Morph kernel size", min_value=1, value=3, step=1)
         morph_iters = st.number_input("Morph iterations", min_value=1, value=1, step=1)
         invert = st.checkbox("Invert colors for Potrace (black foreground)", value=False, help="Potrace traces black shapes by default. Enable if your design is white on black.")
+        st.markdown("---")
+        skeletonize_on = st.checkbox("🦴 Line Thinning (Skeletonize)", value=False, help="Reduce thick strokes to centerlines before tracing")
+        simplify_before = st.checkbox("🧹 Simplify Before Convert", value=True, help="Clean stray specks and enforce binary edges")
+        skeleton_thresh = st.slider("Skeletonize threshold", min_value=100, max_value=240, value=200, step=5)
 
     with st.sidebar.expander("Vectorization", expanded=True):
         route = st.selectbox("Route", ["Potrace DXF (arcs)", "SVG then DXF"], index=0)
         dxf_size = st.number_input("Target size (mm)", min_value=100.0, value=1000.0, step=50.0)
         simplify_tol = st.number_input("Simplify tolerance (SVG route)", min_value=0.0, value=0.0, step=0.1)
+        post_tol = st.number_input("⚙️ Tolerance (mm) — Post DXF simplify", min_value=0.0, value=0.5, step=0.1)
+        potrace_path = st.text_input("Potrace executable (optional)", value=st.session_state.get("_potrace_exe", ""), help="Leave blank to use PATH/WSL. Provide full path like C:\\Tools\\potrace\\potrace.exe")
         colpa, colpb, colpc = st.columns(3)
         potrace_turd = colpa.number_input("Speckle cleanup (turdsize)", min_value=0, value=2, step=1, help="Remove tiny speckles before tracing")
         potrace_alpha = colpb.number_input("Corner smoothness (alphamax)", min_value=0.0, value=1.0, step=0.1, help="Lower = sharper corners, higher = smoother")
@@ -268,9 +277,26 @@ if confirmed:
         base_dir.mkdir(parents=True, exist_ok=True)
         input_for_pipeline = st.session_state.get("_img2dxf_cropped_path") or image_path
         try:
+            # Optional skeletonization pre-pass
+            if skeletonize_on and input_for_pipeline:
+                try:
+                    from wjp_analyser.skeletonize_preprocessor import centerline_preprocess_for_vectorization
+                    input_for_pipeline = centerline_preprocess_for_vectorization(
+                        input_for_pipeline,
+                        out_dir=str(base_dir),
+                        invert=not invert,  # if we invert for potrace later, keep foreground handling consistent
+                        thresh=int(skeleton_thresh),
+                        open_kernel=(3, 3),
+                    )
+                    st.info("Applied skeletonization (centerline thinning)")
+                except Exception as e:
+                    st.warning(f"Skeletonization skipped: {e}")
+
             # Prefer Potrace pipeline if available
             from wjp_analyser.image_processing.potrace_pipeline import (
                 preprocess_and_vectorize,
+                simplify_dxf_inplace,
+                compute_dxf_complexity,
             )
             route_key = "potrace_dxf" if route.startswith("Potrace") else "svg_then_dxf"
             dxf_path, preview_path, svg_path = preprocess_and_vectorize(
@@ -292,33 +318,101 @@ if confirmed:
                 potrace_turdsize=int(potrace_turd),
                 potrace_alphamax=float(potrace_alpha),
                 potrace_opttolerance=float(potrace_opt),
+                potrace_exe=str(potrace_path).strip() or None,
             )
             if dxf_path is None:
                 raise RuntimeError("Potrace pipeline did not produce a DXF.")
             st.success("Conversion complete (Potrace)")
             st.image(str(preview_path), caption="Preprocessed binary", use_column_width=True)
-            col1, col2, col3 = st.columns(3)
-            with open(dxf_path, "rb") as fh:
-                col1.download_button("Download DXF", data=fh.read(), file_name=Path(dxf_path).name)
-            if svg_path and Path(svg_path).exists():
-                with open(svg_path, "rb") as fh:
-                    col2.download_button("Download SVG", data=fh.read(), file_name=Path(svg_path).name)
-            if col3.button("Open in Analyzer"):
-                st.session_state["last_output_dxf"] = str(dxf_path)
-                st.success("DXF set. Open Analyze DXF page.")
+            # Post-DXF simplification
+            if post_tol > 0:
+                try:
+                    ok = simplify_dxf_inplace(Path(dxf_path), float(post_tol))
+                    if ok:
+                        st.info(f"Applied post-DXF simplification (tol={post_tol} mm)")
+                except Exception as e:
+                    st.warning(f"Post simplification failed: {e}")
 
-            # Overlay check
-            with st.expander("Vector Overlay Check", expanded=False):
-                st.caption("Render DXF vectors over the preprocessed binary to verify match.")
-                alpha = st.slider("Overlay opacity", 0.05, 1.0, 0.8)
-                lw = st.slider("Line width", 0.5, 3.0, 1.2)
-                flip_y = st.checkbox("Flip Y axis (if needed)", value=False, key="overlay_flip_y")
-                if st.button("Render Overlay"):
-                    try:
-                        fig = _render_overlay(preview_path, dxf_path, alpha=alpha, lw=lw, flip_y=flip_y)
-                        st.pyplot(fig, clear_figure=True, use_container_width=True)
-                    except Exception as e:
-                        st.error(f"Overlay render failed: {e}")
+            # Complexity report
+            try:
+                n_entities, n_nodes, total_len = compute_dxf_complexity(Path(dxf_path))
+                with st.expander("📊 Complexity Report", expanded=True):
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Entities", n_entities)
+                    c2.metric("Nodes", n_nodes)
+                    c3.metric("Total Length (mm)", f"{total_len:.1f}")
+            except Exception as e:
+                st.caption(f"Complexity report unavailable: {e}")
+
+        except Exception as e:
+            # Fallback: OpenCV converter
+            if OpenCVImageToDXFConverter is None:
+                st.error(f"Conversion failed and OpenCV fallback unavailable: {e}")
+            else:
+                st.info(f"Potrace pipeline unavailable or failed ({e}). Falling back to OpenCV converter.")
+                preview_path = base_dir / f"{Path(input_for_pipeline).stem}_preview.png"
+                dxf_path = base_dir / f"{Path(input_for_pipeline).stem}_converted.dxf"
+                try:
+                    converter = OpenCVImageToDXFConverter(
+                        binary_threshold=int(binary_threshold),
+                        min_area=500,
+                        dxf_size=float(dxf_size),
+                    )
+                    converter.convert_image_to_dxf(
+                        input_image=str(input_for_pipeline),
+                        output_dxf=str(dxf_path),
+                        preview_output=str(preview_path),
+                    )
+                    st.success("Conversion complete (OpenCV)")
+                    st.image(str(preview_path), caption="Preview", use_column_width=True)
+                    col1, col2, col3 = st.columns(3)
+                    with open(dxf_path, "rb") as fh:
+                        col1.download_button("Download DXF", data=fh.read(), file_name=Path(dxf_path).name)
+                    with open(preview_path, "rb") as fh:
+                        col2.download_button("Download Preview", data=fh.read(), file_name=Path(preview_path).name)
+                    if col3.button("Open in Analyzer"):
+                        st.session_state["last_output_dxf"] = str(dxf_path)
+                        st.success("DXF set. Open Analyze DXF page.")
+                except Exception as e2:
+                    st.error(f"Conversion failed: {e2}")
+
+    # ---------------------------------------
+    # Auto Pre-Processor (one-click pipeline)
+    # ---------------------------------------
+    st.markdown("---")
+    st.subheader("Auto Pre-Processor (Pipeline)")
+    colA, colB, colC, colD = st.columns(4)
+    auto_run_potrace = colA.checkbox("Run Potrace", value=True)
+    auto_export_dxf = colB.checkbox("Export DXF", value=True)
+    auto_simplify_mm = colC.number_input("Post simplify (mm)", min_value=0.0, value=0.5, step=0.1)
+    auto_px_per_mm = colD.number_input("Pixels per mm", min_value=0.1, value=10.0, step=0.1)
+    if st.button("Run Auto Pre-Processor", disabled=not confirmed):
+        try:
+            from wjp_analyser.auto_preprocess import auto_process
+            project_root = Path(__file__).parent.parent.parent.parent
+            base_dir = project_root / "output" / "image_to_dxf"
+            base_dir.mkdir(parents=True, exist_ok=True)
+            input_for_pipeline = st.session_state.get("_img2dxf_cropped_path") or image_path
+            res = auto_process(
+                input_path=str(input_for_pipeline),
+                outdir=str(base_dir),
+                scale_px_per_mm=float(auto_px_per_mm),
+                run_potrace_flag=bool(auto_run_potrace),
+                export_dxf_flag=bool(auto_export_dxf),
+                dxf_simplify_mm=float(auto_simplify_mm) if auto_simplify_mm > 0 else None,
+            )
+            st.success(f"Auto processing done. Mode: {res.mode}")
+            if res.cleaned_png and Path(res.cleaned_png).exists():
+                st.image(res.cleaned_png, caption="Auto cleaned PNG", use_column_width=True)
+            if res.dxf_simplified_path and Path(res.dxf_simplified_path).exists():
+                with open(res.dxf_simplified_path, "rb") as fh:
+                    st.download_button("Download Simplified DXF", data=fh.read(), file_name=Path(res.dxf_simplified_path).name)
+            elif res.dxf_path and Path(res.dxf_path).exists():
+                with open(res.dxf_path, "rb") as fh:
+                    st.download_button("Download DXF", data=fh.read(), file_name=Path(res.dxf_path).name)
+            st.json(res.logs or {})
+        except Exception as e:
+            st.error(f"Auto pre-processor failed: {e}")
         except Exception as e:
             # Fallback: OpenCV converter
             if OpenCVImageToDXFConverter is None:

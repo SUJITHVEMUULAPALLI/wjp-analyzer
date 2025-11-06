@@ -22,6 +22,7 @@ from flask import (
     send_file,
     url_for,
     abort,
+    jsonify,
 )
 from werkzeug.utils import secure_filename
 import requests
@@ -64,6 +65,11 @@ from .interactive_api import api_bp as interactive_api_bp
 from ..image_processing.image_processor import ImageProcessor
 from ..ai.ollama_client import OllamaAnalyzer, OllamaConfig, ManufacturingAnalysis
 from ..ai.openai_client import OpenAIAnalyzer, OpenAIConfig
+from .api_utils import (
+    DXFProcessingError,
+    calculate_costs_from_dxf,
+    generate_gcode_from_dxf,
+)
 import time
 import traceback
 
@@ -104,8 +110,18 @@ logging_config = {
 }
 initialize_logging(logging_config)
 
-# Initialize cache system
-initialize_cache("cache", memory_size=1000, file_size_mb=100)
+# Initialize cache system in a writable location
+try:
+    _web_dir = os.path.dirname(os.path.abspath(__file__))
+    _project_root_for_cache = os.path.abspath(os.path.join(_web_dir, '..', '..', '..', '..'))
+    _cache_dir = os.path.join(_project_root_for_cache, 'output', 'cache')
+    os.makedirs(_cache_dir, exist_ok=True)
+except Exception:
+    import tempfile
+    _cache_dir = os.path.join(tempfile.gettempdir(), 'wjp_analyser', 'cache')
+    os.makedirs(_cache_dir, exist_ok=True)
+
+initialize_cache(_cache_dir, memory_size=1000, file_size_mb=100)
 
 # Validate configuration
 if not validate_config():
@@ -460,58 +476,69 @@ def api_optimize_layer(layer_id):
 def api_generate_gcode():
     """API endpoint for generating G-code."""
     try:
-        data = request.get_json()
-        layer_id = data.get("layer_id")
-        
-        if not layer_id:
-            return jsonify({"success": False, "error": "Layer ID is required"})
-        
-        # Generate G-code (placeholder implementation)
-        gcode_lines = [
-            "G21 ; Set units to millimeters",
-            "G90 ; Absolute positioning",
-            "G0 X0 Y0 ; Move to origin",
-            "M3 S1000 ; Start spindle",
-            "G1 X10 Y10 F1000 ; Cut line",
-            "M5 ; Stop spindle",
-            "G0 X0 Y0 ; Return to origin",
-            "M30 ; End program"
-        ]
-        
+        payload = request.get_json(silent=True) or {}
+        safe_dxf = _resolve_dxf_from_payload(
+            payload.get("dxf_path"),
+            payload.get("analysis_id"),
+        )
+
+        feed = parse_float(payload.get("feed"), DEFAULT_GCODE_PARAMS["feed"])
+        m_on = payload.get("m_on") or DEFAULT_GCODE_PARAMS["m_on"]
+        m_off = payload.get("m_off") or DEFAULT_GCODE_PARAMS["m_off"]
+        pierce_ms = parse_int(payload.get("pierce_ms"), DEFAULT_GCODE_PARAMS["pierce_ms"])
+
+        result = generate_gcode_from_dxf(
+            safe_dxf,
+            OUTPUT_FOLDER,
+            feed=feed,
+            m_on=m_on,
+            m_off=m_off,
+            pierce_ms=pierce_ms,
+        )
+
         return jsonify({
             "success": True,
-            "gcode": gcode_lines,
-            "line_count": len(gcode_lines),
-            "estimated_time": "12.5 min"
+            "gcode": result["gcode_preview"],
+            "line_count": result["line_count"],
+            "estimated_time": f"{result['estimated_time_minutes']:.1f} min",
+            "gcode_id": result["gcode_id"],
+            "gcode_path": result["gcode_path"],
+            "metrics": result["metrics"],
         })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    except (ValueError, FileNotFoundError, DXFProcessingError) as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 @app.route("/api/calculate-costs", methods=["POST"])
 def api_calculate_costs():
     """API endpoint for calculating costs."""
     try:
-        data = request.get_json()
-        layer_id = data.get("layer_id")
-        
-        if not layer_id:
-            return jsonify({"success": False, "error": "Layer ID is required"})
-        
-        # Calculate costs (placeholder implementation)
-        costs = {
-            "total_cost": 245.50,
-            "material_cost": 180.25,
-            "cutting_cost": 45.75,
-            "setup_cost": 19.50,
-            "waste_cost": 12.00
-        }
-        
+        payload = request.get_json(silent=True) or {}
+        safe_dxf = _resolve_dxf_from_payload(
+            payload.get("dxf_path"),
+            payload.get("analysis_id"),
+        )
+
+        rate_per_m = parse_float(payload.get("rate_per_m"), 825.0)
+        machine_rate = parse_float(payload.get("machine_rate_per_min"), 20.0)
+        pierce_cost = parse_float(payload.get("pierce_cost"), 1.5)
+        setup_cost = parse_float(payload.get("setup_cost"), 15.0)
+        pierce_ms = parse_int(payload.get("pierce_ms"), DEFAULT_GCODE_PARAMS["pierce_ms"])
+        feed = parse_float(payload.get("feed"), DEFAULT_GCODE_PARAMS["feed"])
+
+        # Use unified costing service (accepts DXF path; override fields can be added upstream)
+        from wjp_analyser.services.costing_service import estimate_cost
+        costs = estimate_cost(safe_dxf)
+
         return jsonify({
             "success": True,
             "costs": costs
         })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+    except (ValueError, FileNotFoundError, DXFProcessingError) as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @app.route("/gcode-generation")
@@ -1200,26 +1227,41 @@ def upload_file():
         flash("Please choose a DXF or image file to upload.")
         return render_index(form_values, image_values)
 
-    # Validate uploaded file
-    filename = uploaded_file.filename
-    validation_result = validate_uploaded_file(uploaded_file.filename, filename)
-    
+    original_filename = uploaded_file.filename or ""
+    filename = secure_filename(original_filename)
+    if not filename:
+        flash("Unable to determine a safe filename for the uploaded file.")
+        return render_index(form_values, image_values)
+
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+    try:
+        uploaded_file.save(file_path)
+    except Exception as exc:
+        log_security_event("file_save_failure", {
+            "filename": original_filename,
+            "error": str(exc),
+        })
+        flash("Failed to save the uploaded file. Please try again.")
+        return render_index(form_values, image_values)
+
+    validation_result = validate_uploaded_file(file_path, original_filename or filename)
+
     if not validation_result.is_valid:
         log_security_event("invalid_file_upload", {
-            "filename": filename,
+            "filename": original_filename,
             "errors": validation_result.errors
         })
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
         flash(f"Invalid file: {', '.join(validation_result.errors)}")
         return render_index(form_values, image_values)
-    
+
     if validation_result.warnings:
         for warning in validation_result.warnings:
             flash(f"Warning: {warning}", "warning")
-
-    # Sanitize filename and save file
-    filename = secure_filename(filename)
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    uploaded_file.save(file_path)
     
     # Log successful file upload
     log_user_action("file_upload_success", details={
@@ -1283,6 +1325,75 @@ def _resolve_analysis_file(analysis_id: str, file_type: str) -> Tuple[str, str]:
     output_dir = _safe_join(OUTPUT_FOLDER, analysis_id)
     file_path = os.path.join(output_dir, ANALYSIS_FILES[file_type])
     return ANALYSIS_FILES[file_type], file_path
+
+
+def _resolve_dxf_path(request_path: str) -> str:
+    """Resolve an incoming DXF path against known safe directories."""
+    candidate = (request_path or "").strip()
+    if not candidate:
+        raise ValueError("DXF path is required.")
+
+    if os.path.isabs(candidate):
+        resolved = os.path.realpath(candidate)
+        if not resolved.startswith(PROJECT_ROOT):
+            raise ValueError("DXF path must be within the project directory.")
+        if not os.path.exists(resolved):
+            raise FileNotFoundError("DXF file not found.")
+        return resolved
+
+    search_roots = [UPLOAD_FOLDER, OUTPUT_FOLDER, PROJECT_ROOT]
+    for root in search_roots:
+        try:
+            resolved = _safe_join(root, candidate)
+        except ValueError:
+            continue
+        if os.path.exists(resolved):
+            return resolved
+
+    resolved = os.path.realpath(os.path.join(PROJECT_ROOT, candidate))
+    if resolved.startswith(PROJECT_ROOT) and os.path.exists(resolved):
+        return resolved
+
+    raise FileNotFoundError("DXF file not found.")
+
+
+def _resolve_dxf_from_payload(dxf_path: str | None, analysis_id: str | None) -> str:
+    """Resolve DXF path from payload parameters."""
+    if dxf_path:
+        return _resolve_dxf_path(dxf_path)
+
+    if analysis_id:
+        if not _validate_id(analysis_id):
+            raise ValueError("Invalid analysis identifier.")
+        output_dir = _safe_join(OUTPUT_FOLDER, analysis_id)
+
+        # Prefer converted DXF metadata when available
+        try:
+            _, meta_path = _resolve_analysis_file(analysis_id, "image_metadata")
+        except KeyError:
+            meta_path = None
+
+        if meta_path and os.path.exists(meta_path):
+            try:
+                with open(meta_path, "r", encoding="utf-8") as handle:
+                    meta = json.load(handle)
+                converted = meta.get("output_dxf")
+                if converted:
+                    return _resolve_dxf_path(converted)
+            except Exception:
+                pass
+
+        # Fallback: search output directory for DXF artefacts
+        if os.path.isdir(output_dir):
+            for name in os.listdir(output_dir):
+                if name.lower().endswith(".dxf"):
+                    candidate = os.path.join(output_dir, name)
+                    if os.path.exists(candidate):
+                        return candidate
+
+        raise FileNotFoundError("No DXF artefact found for the specified analysis.")
+
+    raise ValueError("Either dxf_path or analysis_id must be provided.")
 
 
 @app.route("/results/<analysis_id>")

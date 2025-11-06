@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Page not found</h2>
+    <p>The page you requested could not be found.</p>
+    <div class="form-actions">
+        <a class="link-button" href="{{ url_for('main.index') }}">Return Home</a>
+    </div>
+{% endblock %}
+
+
+

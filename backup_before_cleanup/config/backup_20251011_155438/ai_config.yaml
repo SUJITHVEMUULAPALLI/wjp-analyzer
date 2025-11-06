@@ -1,0 +1,27 @@
+# OpenAI Configuration Template
+# Copy this file to openai_config.yaml and fill in your API key
+
+openai:
+  # Your OpenAI API key (get from https://platform.openai.com/api-keys)
+  api_key: "your-api-key-here"
+  
+  # Default model to use
+  model: "gpt-4"
+  
+  # Response settings
+  max_tokens: 2000
+  temperature: 0.7
+  
+  # Alternative: Set environment variable instead
+  # export OPENAI_API_KEY="your-api-key-here"
+
+# Usage Examples:
+# 
+# 1. Analyze DXF with AI:
+#    python -m cli.wjdx ai-analyze sample.dxf --out ai_output
+#
+# 2. Generate design suggestions:
+#    python -m cli.wjdx ai-design "intricate floral pattern for waterjet cutting" --out design_output
+#
+# 3. Use specific model:
+#    python -m cli.wjdx ai-analyze sample.dxf --model gpt-3.5-turbo --out ai_output

@@ -14,7 +14,7 @@ The system helps waterjet cutting professionals:
 5. Optimize toolpaths and nesting
 
 ### Key Technologies Used
-- **Python 3.8+**: Core programming language
+- **Python 3.10+**: Core programming language
 - **OpenCV**: Image processing and computer vision
 - **Streamlit**: Web interface framework
 - **ezdxf**: DXF file processing

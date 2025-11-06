@@ -1,166 +1,296 @@
 ﻿# WJP ANALYSER - Waterjet Cutting Analysis System
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
-[![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)](https://opencv.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A comprehensive waterjet cutting analysis system that provides DXF file processing, AI-powered analysis, image-to-DXF conversion, and interactive editing capabilities.
+A comprehensive, production-ready waterjet cutting analysis system with DXF processing, AI-powered analysis, image-to-DXF conversion, advanced nesting optimization, and performance enhancements for enterprise use.
 
-## 🚀 Features
+## 🚀 Quick Start
 
-### 📊 DXF Analysis Engine
-- **Geometric Analysis**: Comprehensive analysis of DXF entities (polylines, arcs, circles, lines)
+### Minimal Startup (Simplest)
+
+```bash
+# Just run this to start the web UI
+python run.py
+```
+
+That's it! The web interface will open at `http://127.0.0.1:8501`
+
+### Recommended: New Unified CLI
+
+```bash
+# Launch Streamlit web UI (recommended)
+python -m wjp_analyser.cli.wjp_cli web
+
+# Launch FastAPI server
+python -m wjp_analyser.cli.wjp_cli api
+
+# Start background worker for async jobs
+python -m wjp_analyser.cli.wjp_cli worker
+
+# View all commands
+python -m wjp_analyser.cli.wjp_cli --help
+```
+
+### Alternative: Legacy Launchers (Deprecated)
+
+```bash
+# DEPRECATED: Use 'wjp' command instead
+python run_one_click.py --mode ui --ui-backend streamlit
+
+# DEPRECATED: Use 'wjp api' instead
+python wjp_analyser_unified.py api
+```
+
+## ✨ Key Features
+
+### 📊 Advanced DXF Analysis Engine
+- **Performance Optimized**: Streaming parser for large files (>10MB), memory optimization, intelligent caching
+- **Geometric Analysis**: Comprehensive analysis of DXF entities with quality checks
+- **AI-Powered Recommendations**: Executable operation suggestions with auto-apply options
 - **Shape Grouping**: Intelligent grouping of similar shapes for efficient processing
-- **Cutting Optimization**: Calculation of optimal cutting paths and pierce points
-- **Cost Estimation**: Material-specific cost calculation based on cutting length and complexity
-- **Quality Assessment**: Detection of potential issues like tiny segments, shaky polylines, and duplicates
+- **Cost Estimation**: Material-specific cost calculation with caching
+- **Quality Assessment**: Detection of issues (tiny segments, open contours, min radius/spacing violations)
+
+### 🏭 Production-Grade Nesting
+- **Geometry Hygiene**: Robust polygonization, hole handling, winding rules, tolerance unification
+- **Advanced Placement**: Bottom-Left Fill, NFP refinement, genetic algorithms, simulated annealing
+- **Constraint System**: Hard constraints (kerf margin, min web, pierce zones) and soft constraints (priorities, grain direction)
+- **Determinism Mode**: Reproducible nesting results with seed control
+- **Spatial Indexing**: STRtree-based collision detection for fast performance
 
 ### 🖼️ Image to DXF Conversion
-- **Multiple Algorithms**: Support for Potrace, OpenCV, and custom texture-aware conversion
+- **Multiple Algorithms**: Support for Potrace, OpenCV-enhanced, and texture-aware conversion
 - **Object Detection**: Advanced contour detection with shape classification
 - **Interactive Editing**: Live editing interface with object selection and modification
-- **Preview System**: Comprehensive preview with vector overlay and multi-layer visualization
 - **Batch Processing**: Support for processing multiple images
 
 ### 🤖 AI-Powered Features
-- **Intelligent Analysis**: AI-driven analysis of DXF files for optimization suggestions
-- **Design Generation**: Automated generation of designs based on requirements
-- **Material Recommendations**: AI-powered material selection based on design characteristics
-- **Quality Prediction**: Prediction of cutting quality and potential issues
+- **Executable Recommendations**: Rule+AI hybrid system with auto-apply operations
+- **Design Analysis**: AI-driven analysis with actionable fixes
+- **Readiness Scoring**: Automatic scoring of DXF files for waterjet readiness
+- **Material Recommendations**: AI-powered material selection
 
-### 🌐 Web Interface
+### 🌐 Modern Architecture
+- **API-First Design**: FastAPI backend with automatic fallback to direct services
+- **Async Job Processing**: Redis Queue (RQ) for background tasks
+- **Service Layer**: Centralized business logic (analysis, costing, editing, caching)
+- **Performance Optimizations**: Streaming parsers, memory optimization, intelligent caching
+- **Unified CLI**: Single entry point (`wjp` command) for all operations
+
+### 🎨 Web Interface
 - **Multi-Page Design**: Separate pages for different workflows
-- **Real-Time Preview**: Live preview of analysis results and conversions
-- **Interactive Editing**: Point-and-click editing of detected objects
-- **File Management**: Upload, download, and management of DXF files
-- **Responsive Design**: Works on desktop and mobile devices
+- **Real-Time Preview**: Live preview with jobs drawer for async operations
+- **Interactive Editing**: Point-and-click editing with error handling
+- **Wizard Flows**: Guided workflows for complex operations
+- **Professional UX**: Actionable error messages, terminology standardization
 
 ## 📁 Project Structure
 
 ```
 WJP ANALYSER/
 ├── src/
-│   ├── wjp_analyser/
-│   │   ├── analysis/           # DXF analysis engine
-│   │   │   ├── dxf_analyzer.py
-│   │   │   ├── grouping.py
-│   │   │   ├── cost_estimator.py
-│   │   │   └── quality_checker.py
-│   │   ├── image_processing/   # Image-to-DXF conversion
-│   │   │   ├── object_detector.py
-│   │   │   ├── interactive_editor.py
-│   │   │   ├── preview_renderer.py
-│   │   │   ├── potrace_pipeline.py
-│   │   │   └── texture_pipeline.py
-│   │   ├── web/               # Web interface
-│   │   │   ├── app.py
-│   │   │   ├── _components.py
-│   │   │   └── pages/
-│   │   ├── ai/                # AI integration
-│   │   │   ├── openai_client.py
-│   │   │   └── ollama_client.py
-│   │   ├── cli/               # Command-line tools
-│   │   │   ├── analyze_cli.py
-│   │   │   └── batch_analyze.py
-│   │   └── utils/             # Utility functions
-│   └── scripts/               # Standalone scripts
-├── config/                    # Configuration files
-│   ├── ai_config.yaml
-│   ├── material_profiles.py
-│   └── api_keys.yaml
-├── data/                      # Sample data and templates
-├── docs/                      # Documentation
-├── tests/                     # Unit tests
-├── tools/                     # Utility tools
-└── templates/                 # Web templates
+│   └── wjp_analyser/
+│       ├── analysis/              # DXF analysis engine
+│       │   └── dxf_analyzer.py   # Core analyzer with performance optimizations
+│       ├── services/              # Service layer (NEW)
+│       │   ├── analysis_service.py
+│       │   ├── costing_service.py
+│       │   ├── editor_service.py
+│       │   ├── csv_analysis_service.py
+│       │   └── layered_dxf_service.py
+│       ├── performance/           # Performance optimizations (NEW)
+│       │   ├── streaming_parser.py
+│       │   ├── cache_manager.py
+│       │   └── memory_optimizer.py
+│       ├── nesting/               # Production-grade nesting (NEW)
+│       │   ├── geometry_hygiene.py
+│       │   ├── placement_engine.py
+│       │   └── constraints.py
+│       ├── api/                   # FastAPI backend (NEW)
+│       │   ├── fastapi_app.py
+│       │   ├── queue_manager.py
+│       │   └── worker.py
+│       ├── web/                   # Web interface
+│       │   ├── unified_web_app.py
+│       │   ├── api_client.py
+│       │   ├── api_client_wrapper.py
+│       │   ├── components/        # Reusable UI components (NEW)
+│       │   │   ├── wizard.py
+│       │   │   ├── jobs_drawer.py
+│       │   │   ├── error_handler.py
+│       │   │   └── terminology.py
+│       │   └── pages/
+│       ├── ai/                    # AI integration
+│       │   └── recommendation_engine.py  # Executable operations (NEW)
+│       ├── cli/                   # Command-line tools
+│       │   └── wjp_cli.py        # Unified CLI (NEW)
+│       └── image_processing/      # Image-to-DXF conversion
+├── config/                        # Configuration files
+├── requirements.txt               # Dependencies
+└── README.md                      # This file
 ```
 
 ## 🛠️ Installation
 
 ### Prerequisites
-- Python 3.8 or higher
-- pip package manager
+- **Python**: 3.10 or higher
+- **Redis**: For async job processing (optional, see below)
+- **Potrace**: Optional, for advanced vectorization
 
 ### Install Dependencies
+
 ```bash
+# Install all dependencies
 pip install -r requirements.txt
+
+# Key dependencies include:
+# - Core: numpy, opencv-python, pillow, matplotlib, pandas
+# - DXF Processing: ezdxf, shapely
+# - Web: streamlit, fastapi, uvicorn
+# - Performance: rq, redis (for job queue)
+# - AI: openai, requests
 ```
 
-### Required Dependencies
-- **Core**: numpy, opencv-python, pillow, matplotlib
-- **DXF Processing**: ezdxf, shapely
-- **Web Interface**: streamlit
-- **AI Integration**: openai, requests
-- **Image Processing**: scikit-image
+### Optional: Redis for Async Jobs
 
-### Optional Dependencies
-- **Potrace**: For advanced vectorization (install separately)
-  - **Windows**: Download from http://potrace.sourceforge.net/ or install via Chocolatey: `choco install potrace`
-  - **Linux**: `sudo apt-get install potrace` (Ubuntu/Debian) or `sudo yum install potrace` (RHEL/CentOS)
-  - **macOS**: `brew install potrace`
-- **Ollama**: For local AI models (install separately)
+For background job processing:
 
-## 🚀 Quick Start
+```bash
+# Windows (Docker)
+docker run -d -p 6379:6379 redis
+
+# Linux
+sudo apt-get install redis-server
+sudo systemctl start redis
+
+# macOS
+brew install redis
+brew services start redis
+```
+
+### Optional: Potrace (Advanced Vectorization)
+
+```bash
+# Windows (Chocolatey)
+choco install potrace
+
+# Linux (Ubuntu/Debian)
+sudo apt-get install potrace
+
+# macOS
+brew install potrace
+```
+
+## 🚀 Usage
 
 ### Web Interface
+
 ```bash
-streamlit run src/wjp_analyser/web/app.py
+# Minimal startup (simplest)
+python run.py
+
+# With custom port
+python run.py --port 8080
+
+# With custom host and port
+python run.py --host 0.0.0.0 --port 8501
+
+# Or use the full CLI
+python -m wjp_analyser.cli.wjp_cli web
+```
+
+### API Server
+
+```bash
+# Launch FastAPI server
+python -m wjp_analyser.cli.wjp_cli api
+
+# With auto-reload (development)
+python -m wjp_analyser.cli.wjp_cli api --reload
+
+# Custom host/port
+python -m wjp_analyser.cli.wjp_cli api --host 0.0.0.0 --port 8000
+```
+
+### Background Worker (for async jobs)
+
+```bash
+# Start worker (requires Redis)
+python -m wjp_analyser.cli.wjp_cli worker
+
+# Specific queues
+python -m wjp_analyser.cli.wjp_cli worker --queues analysis,conversion
+
+# Burst mode (exit when no jobs)
+python -m wjp_analyser.cli.wjp_cli worker --burst
 ```
 
 ### Command Line Analysis
+
 ```bash
-python -m src.wjp_analyser.cli.analyze_cli --input sample.dxf --output results/
+# Using Python API directly
+python -c "from wjp_analyser.services.analysis_service import run_analysis; print(run_analysis('file.dxf'))"
 ```
 
-### Batch Processing
-```bash
-python -m src.wjp_analyser.cli.batch_analyze --input-dir dxf_files/ --output-dir results/
-```
-
-## 📖 Usage
+## 📖 Workflows
 
 ### 1. DXF Analysis Workflow
-1. Upload DXF file through web interface
-2. System automatically analyzes geometry and groups similar shapes
-3. Review analysis results including cutting length, pierce points, and cost
-4. Apply optimizations (softening, filleting, scaling)
-5. Generate optimized DXF and toolpath files
-6. Download results
+
+1. **Upload DXF** through web interface or API
+2. **Automatic Analysis** with performance optimizations:
+   - Large files use streaming parser
+   - Results cached for repeated analyses
+   - Memory optimized for large polygon sets
+3. **AI Recommendations** with executable operations:
+   - Auto-fix critical issues (zero-area, open contours)
+   - Suggestions for optimization (simplification, grouping)
+   - Readiness score calculation
+4. **Review & Apply** fixes interactively
+5. **Export** optimized DXF, CSV reports, G-code
 
 ### 2. Image to DXF Workflow
-1. Upload image file (PNG, JPG, etc.)
-2. Crop and adjust image boundaries
-3. Configure preprocessing parameters (threshold, blur, etc.)
-4. Detect objects using advanced contour detection
-5. Edit objects interactively (select, modify, organize)
-6. Preview final DXF with vector overlay
-7. Export to DXF format
 
-### 3. AI Design Generation Workflow
-1. Describe design requirements in natural language
-2. AI generates design suggestions
-3. Review and refine generated designs
-4. Convert to DXF format
-5. Analyze and optimize for cutting
+1. Upload image file (PNG, JPG, etc.)
+2. Configure preprocessing (threshold, blur, invert)
+3. Detect objects with advanced contour detection
+4. Edit objects interactively
+5. Preview with vector overlay
+6. Export to DXF format
+
+### 3. Advanced Nesting Workflow
+
+1. Load multiple DXF files
+2. Configure constraints:
+   - Hard: kerf margin, min web, pierce zones
+   - Soft: priorities, grain direction
+3. Run optimization (BLF, NFP, genetic algorithms)
+4. Review utilization and placement
+5. Export nested layout
 
 ## ⚙️ Configuration
 
-### AI Configuration (`config/ai_config.yaml`)
-```yaml
-openai:
-  api_key: "your-openai-api-key"
-  model: "gpt-4"
-  max_tokens: 4000
-  temperature: 0.7
+### Environment Variables
 
-ollama:
-  base_url: "http://localhost:11434"
-  model: "llama2"
-  timeout: 30
+```bash
+# Redis connection (for job queue)
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
+export REDIS_URL=redis://localhost:6379/0
+
+# API configuration
+export WJP_USE_API=true  # Use FastAPI (default: auto-detect)
+export WJP_API_URL=http://localhost:8000
+
+# Performance tuning
+export WJP_CACHE_DIR=.cache
+export WJP_STREAMING_THRESHOLD=10485760  # 10MB in bytes
 ```
 
 ### Material Profiles (`config/material_profiles.py`)
+
 ```python
 MATERIAL_PROFILES = {
     "steel": {
@@ -170,97 +300,168 @@ MATERIAL_PROFILES = {
         "cost_per_mm": 0.05,
         "kerf_width": 1.1
     },
-    "aluminum": {
-        "thickness": 3.0,
-        "cutting_speed": 150.0,
-        "pierce_time": 1.5,
-        "cost_per_mm": 0.03,
-        "kerf_width": 0.8
-    }
+    # ... more materials
 }
 ```
 
 ## 🔧 API Usage
 
-### Basic DXF Analysis
+### FastAPI Endpoints
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Analyze DXF (synchronous)
+curl -X POST http://localhost:8000/analyze-dxf \
+  -H "Content-Type: application/json" \
+  -d '{"dxf_path": "file.dxf", "material": "steel"}'
+
+# Analyze DXF (asynchronous)
+curl -X POST "http://localhost:8000/analyze-dxf?async_mode=true" \
+  -H "Content-Type: application/json" \
+  -d '{"dxf_path": "file.dxf"}'
+
+# Check job status
+curl http://localhost:8000/jobs/{job_id}
+
+# API documentation
+open http://localhost:8000/docs
+```
+
+### Python API Client
+
 ```python
-from wjp_analyser.analysis.dxf_analyzer import AnalyzeArgs, analyze_dxf
+from wjp_analyser.web.api_client_wrapper import analyze_dxf
 
-args = AnalyzeArgs(out="output/")
-args.sheet_width = 1000.0
-args.sheet_height = 1000.0
-
-report = analyze_dxf("input.dxf", args)
+# Automatically uses API if available, falls back to direct service
+report = analyze_dxf("file.dxf", {"material": "steel", "thickness": 6.0})
 print(f"Cutting length: {report['metrics']['length_internal_mm']} mm")
 ```
 
-### Image to DXF Conversion
+### Direct Service Usage
+
 ```python
-from wjp_analyser.image_processing.object_detector import ObjectDetector, DetectionParams
-from wjp_analyser.image_processing.interactive_editor import InteractiveEditor
+from wjp_analyser.services.analysis_service import run_analysis
+from wjp_analyser.services.costing_service import estimate_cost
 
-editor = InteractiveEditor()
-editor.load_image("input.png")
+# Analysis
+report = run_analysis("file.dxf", out_dir="output")
 
-params = DetectionParams(min_area=100)
-objects = editor.detect_objects(params)
-
-editor.export_all_objects("output.dxf")
+# Costing (with caching)
+cost = estimate_cost("file.dxf", {"rate_per_m": 825.0})
+print(f"Total cost: ${cost['total_cost']:.2f}")
 ```
 
-### AI Analysis
-```python
-from wjp_analyser.ai.openai_client import OpenAIClient
+## 📊 Performance Features
 
-client = OpenAIClient(api_key="your-key")
-analysis = client.analyze_dxf("input.dxf", analysis_report)
-print(analysis['recommendations'])
-```
+### Large File Handling
+- **Streaming Parser**: Handles files >10MB without OOM
+- **Early Simplification**: Douglas-Peucker reduction during parsing
+- **Entity Normalization**: Automatic SPLINE/ELLIPSE conversion
 
-## 📊 Supported Formats
+### Caching
+- **Function-Level Memoization**: Automatic caching of expensive operations
+- **Artifact Caching**: DXF, G-code, CSV paths cached with job hash
+- **Cost Caching**: Repeated cost calculations return instantly
 
-### Input Formats
+### Memory Optimization
+- **Coordinate Precision**: Configurable decimal precision (default: 3)
+- **float32 Support**: 50% memory reduction for large polygon sets
+- **Segment Filtering**: Automatic removal of tiny segments (< epsilon)
+
+### Async Processing
+- **Background Jobs**: Long-running tasks processed asynchronously
+- **Job Queue**: Redis Queue (RQ) with multiple queues per workload type
+- **Idempotency**: Duplicate jobs return existing results
+
+## 📋 Supported Formats
+
+### Input
 - **DXF**: R12-R2018 (AutoCAD DXF files)
 - **Images**: PNG, JPG, JPEG, BMP, TIFF
-- **Text**: Natural language descriptions for AI generation
 
-### Output Formats
-- **DXF**: Optimized DXF files
-- **SVG**: Vector graphics
-- **NC**: G-code toolpaths
+### Output
+- **DXF**: Optimized, layered DXF files
+- **CSV**: Component analysis exports
 - **JSON**: Analysis reports
-- **CSV**: Data exports
+- **NC/G-code**: Toolpath files (via separate workflow)
 
 ## 🧪 Testing
 
-### Run Unit Tests
 ```bash
+# Run all tests
 python -m pytest tests/
-```
 
-### Run Specific Test
-```bash
-python -m pytest tests/test_grouping.py
-```
+# Run specific test
+python -m pytest tests/test_dxf_analyzer.py
 
-### Test Coverage
-```bash
+# With coverage
 python -m pytest --cov=src/wjp_analyser tests/
 ```
 
-## 🚀 Performance
+## 🚀 Performance Benchmarks
 
-### Benchmarks
-- **DXF Analysis**: Handles files up to 10MB with complex geometries
-- **Image Processing**: Supports images up to 4K resolution
-- **Real-time Preview**: Updates in <100ms for typical files
-- **Batch Processing**: Can process multiple files simultaneously
+### DXF Analysis
+- **Small files (<1MB)**: <1 second (with cache: instant)
+- **Medium files (1-10MB)**: 5-30 seconds (with streaming: <10 seconds)
+- **Large files (>10MB)**: Streaming parser prevents OOM, 30-120 seconds
+- **Memory usage**: 50-70% reduction with optimizations
 
-### Optimization Tips
-- Use caching for repeated analysis
-- Process files in batches for CLI tools
-- Enable parallel processing for multiple files
-- Use appropriate image resolution for conversion
+### Nesting
+- **Simple nesting (10 parts)**: <1 second
+- **Complex nesting (100+ parts)**: 10-60 seconds
+- **With metaheuristics**: 30-300 seconds (configurable)
+
+## 🔄 Migration from Legacy Launchers
+
+### Old Way (Deprecated)
+```bash
+python run_one_click.py --mode ui
+python main.py analyze file.dxf
+python wjp_analyser_unified.py web-ui
+```
+
+### New Way (Recommended)
+```bash
+# Web UI
+python -m wjp_analyser.cli.wjp_cli web
+
+# API
+python -m wjp_analyser.cli.wjp_cli api
+
+# Worker
+python -m wjp_analyser.cli.wjp_cli worker
+
+# Direct Python API (no CLI needed)
+from wjp_analyser.services import run_analysis
+```
+
+## 📝 Recent Updates (Phases 1-5)
+
+### Phase 1-2: Service Layer & API
+- ✅ Centralized service layer (analysis, costing, editing)
+- ✅ FastAPI backend with async job processing
+- ✅ API client with automatic fallback
+- ✅ Unified CLI (`wjp` command)
+
+### Phase 3: UX Improvements
+- ✅ Wizard components for guided workflows
+- ✅ Jobs drawer for real-time status
+- ✅ Actionable error handling
+- ✅ Terminology standardization
+
+### Phase 4: Performance Optimization
+- ✅ Streaming DXF parser for large files
+- ✅ Enhanced caching with job hashing
+- ✅ Memory optimization (float32, segment filtering)
+- ✅ Job idempotency
+
+### Phase 5: Advanced Nesting
+- ✅ Geometry hygiene (polygonization, holes, winding)
+- ✅ Advanced placement engines (BLF, NFP, metaheuristics)
+- ✅ Constraint system (hard/soft constraints)
+- ✅ Determinism mode
 
 ## 🤝 Contributing
 
@@ -278,30 +479,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - OpenCV community for image processing capabilities
 - Streamlit team for the web framework
-- OpenAI for AI integration capabilities
+- FastAPI team for the modern API framework
 - The waterjet cutting industry for inspiration and requirements
 
 ## 📞 Support
 
-- **Documentation**: Check the `/docs` directory for detailed documentation
+- **Documentation**: Check the `/docs` directory and phase progress files
 - **Issues**: Report bugs and request features on GitHub Issues
-- **Discussions**: Join community discussions on GitHub Discussions
-- **Professional Support**: Available for enterprise users
-
-## 🔮 Roadmap
-
-### Upcoming Features
-- **3D Analysis**: Support for 3D DXF files
-- **Advanced AI**: Integration with specialized CAD AI models
-- **Cloud Processing**: Cloud-based processing for large files
-- **Mobile App**: Native mobile application
-- **REST API**: RESTful API for external integrations
-
-### Performance Improvements
-- **GPU Acceleration**: CUDA support for image processing
-- **Distributed Processing**: Multi-node processing for large batches
-- **Advanced Caching**: Intelligent caching strategies
-- **Algorithm Optimization**: Better performance algorithms
+- **API Docs**: Available at `http://localhost:8000/docs` when API server is running
 
 ---
 

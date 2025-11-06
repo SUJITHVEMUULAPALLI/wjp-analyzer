@@ -1,0 +1,4 @@
+Task: Run MCP tool "run_tests" for {file_name} and summarize output.
+Provide only minimal fix suggestions if tests fail.
+
+

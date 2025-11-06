@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Your Projects</h2>
+    {% if projects and projects|length > 0 %}
+    <ul>
+        {% for p in projects %}
+        <li>
+            <a href="{{ url_for('main.project_detail', project_id=p.id) }}">{{ p.name }}</a>
+            <small> — {{ p.status }}</small>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No projects yet.</p>
+    {% endif %}
+    <div class="form-actions">
+        <a class="link-button" href="{{ url_for('main.new_project') }}">New Project</a>
+        <a class="link-button" href="{{ url_for('main.index') }}">Back</a>
+    </div>
+</section>
+{% endblock %}
+
+

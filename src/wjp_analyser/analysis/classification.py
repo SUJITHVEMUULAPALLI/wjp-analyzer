@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from shapely.geometry import Polygon
 from shapely.strtree import STRtree
 from typing import List, Dict

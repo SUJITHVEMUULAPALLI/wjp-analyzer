@@ -1,0 +1,213 @@
+# Unified Configuration for WJP ANALYSER
+# ======================================
+# This file consolidates all configuration settings for the WJP ANALYSER system.
+# Environment variables can override any setting by prefixing with WJP_.
+
+# Environment and version
+environment: development  # development, staging, production
+version: "1.0.0"
+
+# Server configuration
+server:
+  host: "127.0.0.1"
+  port: 5000
+  debug: false
+  threaded: true
+  processes: 1
+  ssl_cert: null
+  ssl_key: null
+
+# File paths
+paths:
+  upload_folder: "output/temp"
+  output_folder: "output"
+  logs_folder: "logs"
+  temp_folder: "temp"
+  cache_folder: "cache"
+  templates_folder: "templates"
+  static_folder: "static"
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  console_output: true
+  file_output: true
+  file_rotation:
+    enabled: true
+    max_bytes: 10485760  # 10MB
+    backup_count: 5
+  structured_logging: true
+  log_sql_queries: false
+
+# Performance settings
+performance:
+  cache_enabled: true
+  cache_size: 100
+  cache_ttl: 3600  # seconds
+  max_workers: 4
+  timeout: 300  # seconds
+  connection_pool_size: 10
+  max_connections: 100
+  enable_compression: true
+  compression_level: 6
+
+# Security configuration
+security:
+  secret_key: null  # Set via WJP_SECRET_KEY environment variable
+  jwt_secret_key: null  # Set via WJP_JWT_SECRET_KEY environment variable
+  master_password: null  # Set via WJP_MASTER_PASSWORD environment variable
+  max_upload_size: 33554432  # 32MB
+  allowed_extensions:
+    - dxf
+    - jpg
+    - jpeg
+    - png
+    - bmp
+    - tiff
+    - pdf
+  enable_cors: false
+  cors_origins:
+    - "http://localhost:5000"
+    - "http://127.0.0.1:5000"
+    - "http://localhost:8501"
+    - "http://127.0.0.1:8501"
+  security_headers:
+    x_content_type_options: "nosniff"
+    x_frame_options: "DENY"
+    x_xss_protection: "1; mode=block"
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+  session_settings:
+    permanent: false
+    timeout: 3600  # seconds
+    secure: false  # Set to true for HTTPS
+    httponly: true
+    samesite: "Lax"
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_limit: 10
+    window_size: 60  # seconds
+  file_validation:
+    max_filename_length: 255
+    allowed_chars: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    scan_for_malware: false
+
+# AI configuration
+ai:
+  openai:
+    api_key: null  # Set via OPENAI_API_KEY environment variable
+    model: "gpt-4"
+    max_tokens: 2000
+    temperature: 0.7
+    timeout: 30
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "llama2"
+    timeout: 60
+  enabled: true
+  fallback_enabled: true
+
+# Database configuration
+database:
+  type: "sqlite"  # sqlite, postgresql, mysql
+  host: "localhost"
+  port: 5432
+  name: "wjp_analyser"
+  username: "wjp_user"
+  password: null  # Set via WJP_DATABASE_PASSWORD environment variable
+  pool_size: 10
+  max_overflow: 20
+  echo: false
+  ssl_mode: "prefer"
+
+# Redis configuration
+redis:
+  host: "localhost"
+  port: 6379
+  password: null  # Set via WJP_REDIS_PASSWORD environment variable
+  db: 0
+  max_connections: 20
+  socket_timeout: 5
+  socket_connect_timeout: 5
+  retry_on_timeout: true
+
+# Celery configuration
+celery:
+  broker_url: "redis://localhost:6379/0"
+  result_backend: "redis://localhost:6379/0"
+  task_serializer: "json"
+  result_serializer: "json"
+  accept_content:
+    - "json"
+  timezone: "UTC"
+  enable_utc: true
+  task_track_started: true
+  task_time_limit: 300
+  task_soft_time_limit: 240
+  worker_prefetch_multiplier: 1
+  worker_max_tasks_per_child: 1000
+
+# Feature flags
+features:
+  ai_analysis: true
+  image_conversion: true
+  nesting: true
+  cost_estimation: true
+  guided_mode: true
+  batch_processing: true
+  real_time_preview: true
+  collaborative_features: false
+  api_access: true
+  webhooks: false
+
+# Default parameters
+defaults:
+  material: "steel"
+  thickness: 6.0
+  kerf: 1.1
+  cutting_speed: 1200.0
+  cost_per_meter: 50.0
+  sheet_width: 3000.0
+  sheet_height: 1500.0
+  spacing: 10.0
+  quality_level: "high"
+
+# Image processing configuration
+image_processing:
+  edge_threshold: 0.33
+  min_contour_area: 100
+  simplify_tolerance: 0.02
+  blur_kernel_size: 5
+  canny_low: 50
+  canny_high: 150
+  max_image_size: 4096
+  supported_formats:
+    - "jpg"
+    - "jpeg"
+    - "png"
+    - "bmp"
+    - "tiff"
+    - "webp"
+
+# Monitoring configuration
+monitoring:
+  prometheus_enabled: true
+  prometheus_port: 8000
+  grafana_enabled: true
+  grafana_port: 3000
+  elk_enabled: true
+  jaeger_enabled: true
+  jaeger_endpoint: "http://localhost:14268/api/traces"
+  metrics_interval: 30
+  log_level: "INFO"
+
+# Development configuration
+development:
+  hot_reload: false
+  profile_requests: false
+  debug_toolbar: false
+  mock_ai_responses: false
+  enable_caching: true
+  verbose_logging: false
+  test_mode: false

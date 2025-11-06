@@ -1,0 +1,10 @@
+{
+  "openai_key": {
+    "name": "openai_key",
+    "encrypted_key": "gAAAAABo6jzhUqQzEmR-npFm3jqUX1CLn-Au8mtBk-dFX8vPSJYYenjhpNBeYpMdMTgfh5ytkcDLpi8opdjeGVPndQYh4Yl5M-4HF-3VQu3I1jr0LcqmVmunFs0IiqNCvXRBm-iktWvEzstxX1TUtWkOrDlCD2WA5o9uNndpAQOGYch5f_hSVu17W_eGBxIfP6HLMcF2iEdARHUgZSeZUaUrW5MWZl1SZC-8zIJQu40qyKerkrgzuuXlEfkW4nTiC-ZwzdB814MMzYP4DvSu_Y3J_a3lcS1KUbBMCLOp6S0O5LTMU1qnn00=",
+    "service": "openai",
+    "created_at": "0",
+    "last_used": null,
+    "is_active": true
+  }
+}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Upload File</h2>
+    <p>Upload a DXF or image to begin. For the full interactive workflow, try <a href="/layers">Layers & Nesting</a>.</p>
+
+    <form action="{{ url_for('main.upload') }}" method="post" enctype="multipart/form-data">
+        <div class="form-field">
+            <label for="file">File</label>
+            <input type="file" id="file" name="file" accept=".dxf,.jpg,.jpeg,.png,.bmp,.tiff">
+        </div>
+        <div class="form-actions">
+            <button type="submit">Upload</button>
+            <a class="link-button" href="{{ url_for('main.index') }}">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
+
+

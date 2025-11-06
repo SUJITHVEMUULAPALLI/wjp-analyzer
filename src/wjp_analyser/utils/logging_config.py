@@ -99,6 +99,32 @@ class LoggingManager:
         self.loggers: Dict[str, logging.Logger] = {}
         self._setup_root_logger()
     
+    def _resolve_logs_dir(self, desired: str) -> str:
+        """Resolve a writable logs directory.
+        
+        Attempts to create the desired directory first. If that fails due to
+        permissions or an existing non-directory entry, falls back to a
+        user-writable location under LOCALAPPDATA/TEMP, and finally to the
+        current working directory.
+        """
+        try:
+            Path(desired).mkdir(parents=True, exist_ok=True)
+            return desired
+        except Exception:
+            base = (
+                os.getenv("LOCALAPPDATA")
+                or os.getenv("TMP")
+                or os.getenv("TEMP")
+                or os.getcwd()
+            )
+            fallback = Path(base) / "WJP_ANALYSER" / "logs"
+            try:
+                fallback.mkdir(parents=True, exist_ok=True)
+                return str(fallback)
+            except Exception:
+                # Final fallback: current working directory
+                return os.getcwd()
+
     def _setup_root_logger(self):
         """Setup root logger with basic configuration."""
         # Get configuration
@@ -109,8 +135,8 @@ class LoggingManager:
         console_output = self.config.get('console_output', True)
         file_output = self.config.get('file_output', True)
         
-        # Create logs directory
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        # Resolve and create logs directory with safe fallbacks
+        log_dir = self._resolve_logs_dir(log_dir)
         
         # Configure root logger
         root_logger = logging.getLogger()

@@ -1,0 +1,786 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Enhanced DXF Analysis with Layer Management & Nesting</h2>
+    <p>Complete workflow: Upload → Analysis → Layer Creation → Nesting → G-Code → Cost Analysis</p>
+    
+    <!-- File Upload Section -->
+    <div class="upload-section">
+        <h3>1. Upload DXF File</h3>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-field">
+                <label for="file">DXF File</label>
+                <input type="file" id="file" name="file" accept=".dxf" required>
+                <small>Upload a DXF file for analysis</small>
+            </div>
+            <div class="form-field">
+                <label for="kerf">Kerf Compensation (mm)</label>
+                <input type="number" id="kerf" name="kerf" step="0.05" value="{{ form_defaults.kerf }}" min="0.1" max="5.0">
+                <small>Kerf width for dimensional accuracy validation</small>
+            </div>
+            <button type="button" onclick="uploadAndAnalyze()">Upload & Analyze</button>
+        </form>
+    </div>
+
+    <!-- Object Analysis Section -->
+    <div class="analysis-section" id="analysisSection" style="display: none;">
+        <h3>2. Object Analysis</h3>
+        <div class="stats-grid" id="objectStats">
+            <!-- Statistics will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Object Selection Section -->
+    <div class="selection-section" id="selectionSection" style="display: none;">
+        <h3>3. Object Selection</h3>
+        <div class="selection-controls">
+            <button class="btn btn-primary" onclick="selectAllObjects()">Select All</button>
+            <button class="btn btn-secondary" onclick="deselectAllObjects()">Deselect All</button>
+            <button class="btn btn-info" onclick="loadStatistics()">Refresh Stats</button>
+        </div>
+        
+        <div class="object-list" id="objectList">
+            <!-- Objects will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Layer Management Section -->
+    <div class="layer-section" id="layerSection" style="display: none;">
+        <h3>4. Layer Management</h3>
+        <div class="layer-controls">
+            <button class="btn btn-primary" onclick="showCreateLayerModal()">Create Layer</button>
+            <button class="btn btn-info" onclick="createDefaultLayers()">Create Default Layers</button>
+            <button class="btn btn-success" onclick="assignSelectedToLayers()">Assign Selected</button>
+        </div>
+        
+        <div class="layer-list" id="layerList">
+            <!-- Layers will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Nesting Optimization Section -->
+    <div class="nesting-section" id="nestingSection" style="display: none;">
+        <h3>5. Nesting Optimization</h3>
+        <div class="nesting-controls">
+            <button class="btn btn-primary" onclick="runNestingOptimization()">Run Optimization</button>
+            <button class="btn btn-info" onclick="compareAlgorithms()">Compare Algorithms</button>
+            <button class="btn btn-success" onclick="generateReport()">Generate Report</button>
+        </div>
+        
+        <div class="nesting-results" id="nestingResults">
+            <!-- Nesting results will be displayed here -->
+        </div>
+    </div>
+
+    <!-- G-Code Generation Section -->
+    <div class="gcode-section" id="gcodeSection" style="display: none;">
+        <h3>6. G-Code Generation</h3>
+        <div class="gcode-controls">
+            <button class="btn btn-primary" onclick="generateGCode()">Generate G-Code</button>
+            <button class="btn btn-info" onclick="downloadGCode()">Download G-Code</button>
+            <button class="btn btn-warning" onclick="previewGCode()">Preview G-Code</button>
+        </div>
+        
+        <div class="gcode-results" id="gcodeResults">
+            <!-- G-code results will be displayed here -->
+        </div>
+    </div>
+
+    <!-- Cost Analysis Section -->
+    <div class="cost-section" id="costSection" style="display: none;">
+        <h3>7. Cost Analysis</h3>
+        <div class="cost-controls">
+            <button class="btn btn-primary" onclick="calculateCosts()">Calculate Costs</button>
+            <button class="btn btn-info" onclick="optimizeCosts()">Optimize Costs</button>
+            <button class="btn btn-success" onclick="generateCostReport()">Generate Cost Report</button>
+        </div>
+        
+        <div class="cost-results" id="costResults">
+            <!-- Cost analysis results will be displayed here -->
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <a class="link-button" href="{{ url_for('index') }}">Back to Workflow</a>
+    </div>
+</section>
+
+<!-- Modals -->
+<!-- Create Layer Modal -->
+<div class="modal" id="createLayerModal">
+    <div class="modal-content">
+        <span class="close" onclick="closeCreateLayerModal()">&times;</span>
+        <h3>Create New Layer</h3>
+        <form id="createLayerForm">
+            <div class="form-field">
+                <label for="layerName">Layer Name</label>
+                <input type="text" id="layerName" required>
+            </div>
+            <div class="form-field">
+                <label for="layerType">Layer Type</label>
+                <select id="layerType">
+                    <option value="base">Base Layer (Full DXF Path)</option>
+                    <option value="nested">Nested Layer (Optimized)</option>
+                    <option value="custom">Custom Layer</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="layerDescription">Description</label>
+                <textarea id="layerDescription" rows="3"></textarea>
+            </div>
+            <button type="button" onclick="createLayer()">Create Layer</button>
+        </form>
+    </div>
+</div>
+
+<!-- Progress Modal -->
+<div class="modal" id="progressModal">
+    <div class="modal-content">
+        <h3>Processing...</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p id="progressText">Please wait...</p>
+    </div>
+</div>
+
+<style>
+/* Enhanced styling for the integrated interface */
+.upload-section, .analysis-section, .selection-section, .layer-section, .nesting-section, .gcode-section, .cost-section {
+    margin: 20px 0;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.stat-item {
+    background: white;
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+    border: 1px solid #ddd;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.selection-controls, .layer-controls, .nesting-controls, .gcode-controls, .cost-controls {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+}
+
+.object-list, .layer-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background: white;
+}
+
+.object-item, .layer-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.object-item:last-child, .layer-item:last-child {
+    border-bottom: none;
+}
+
+.object-item:hover, .layer-item:hover {
+    background-color: #f8f9fa;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin: 2px;
+}
+
+.btn-primary { background-color: #007bff; color: white; }
+.btn-secondary { background-color: #6c757d; color: white; }
+.btn-info { background-color: #17a2b8; color: white; }
+.btn-success { background-color: #28a745; color: white; }
+.btn-warning { background-color: #ffc107; color: black; }
+
+.btn:hover {
+    opacity: 0.8;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 500px;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: black;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: #28a745;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.nesting-results, .gcode-results, .cost-results {
+    margin-top: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.result-item {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    text-align: center;
+    border: 1px solid #dee2e6;
+}
+
+.result-value {
+    font-size: 20px;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.result-label {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+</style>
+
+<script>
+// Global variables
+let objects = [];
+let layers = [];
+let selectedObjects = new Set();
+let currentDxfPath = null;
+
+// Upload and analyze function
+function uploadAndAnalyze() {
+    const fileInput = document.getElementById('file');
+    const kerfInput = document.getElementById('kerf');
+    
+    if (!fileInput.files[0]) {
+        alert('Please select a DXF file');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('kerf', kerfInput.value);
+    
+    showProgressModal();
+    document.getElementById('progressText').textContent = 'Uploading and analyzing DXF file...';
+    
+    fetch('/layers/api/upload-dxf', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            objects = data.objects;
+            currentDxfPath = data.file_path;
+            
+            // Show analysis section
+            document.getElementById('analysisSection').style.display = 'block';
+            document.getElementById('selectionSection').style.display = 'block';
+            
+            loadObjects();
+            loadStatistics();
+            
+            closeProgressModal();
+        } else {
+            alert('Error: ' + data.error);
+            closeProgressModal();
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+        closeProgressModal();
+    });
+}
+
+function loadObjects() {
+    const objectList = document.getElementById('objectList');
+    objectList.innerHTML = '';
+    
+    objects.forEach(obj => {
+        const objectItem = document.createElement('div');
+        objectItem.className = 'object-item';
+        objectItem.innerHTML = `
+            <div>
+                <input type="checkbox" id="obj_${obj.object_id}" onchange="toggleObjectSelection('${obj.object_id}')">
+                <label for="obj_${obj.object_id}">
+                    <strong>${obj.object_type}</strong> - ${obj.name || 'Unnamed'}
+                    <br><small>Area: ${obj.geometry.area.toFixed(2)} | Complexity: ${obj.complexity}</small>
+                </label>
+            </div>
+        `;
+        objectList.appendChild(objectItem);
+    });
+}
+
+function loadStatistics() {
+    const statsGrid = document.getElementById('objectStats');
+    statsGrid.innerHTML = `
+        <div class="stat-item">
+            <div class="stat-value">${objects.length}</div>
+            <div class="stat-label">Total Objects</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">${objects.reduce((sum, obj) => sum + obj.geometry.area, 0).toFixed(2)}</div>
+            <div class="stat-label">Total Area</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">${layers.length}</div>
+            <div class="stat-label">Layers Created</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">${selectedObjects.size}</div>
+            <div class="stat-label">Selected Objects</div>
+        </div>
+    `;
+}
+
+function toggleObjectSelection(objectId) {
+    if (selectedObjects.has(objectId)) {
+        selectedObjects.delete(objectId);
+    } else {
+        selectedObjects.add(objectId);
+    }
+    loadStatistics();
+}
+
+function selectAllObjects() {
+    objects.forEach(obj => selectedObjects.add(obj.object_id));
+    loadObjects();
+    loadStatistics();
+}
+
+function deselectAllObjects() {
+    selectedObjects.clear();
+    loadObjects();
+    loadStatistics();
+}
+
+function showCreateLayerModal() {
+    document.getElementById('createLayerModal').style.display = 'block';
+}
+
+function closeCreateLayerModal() {
+    document.getElementById('createLayerModal').style.display = 'none';
+}
+
+function createLayer() {
+    const name = document.getElementById('layerName').value;
+    const type = document.getElementById('layerType').value;
+    const description = document.getElementById('layerDescription').value;
+    
+    if (!name) {
+        alert('Please enter a layer name');
+        return;
+    }
+    
+    fetch('/layers/api/layers', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: name,
+            layer_type: type,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            layers.push(data.layer);
+            loadLayers();
+            loadStatistics();
+            closeCreateLayerModal();
+            
+            // Clear form
+            document.getElementById('layerName').value = '';
+            document.getElementById('layerDescription').value = '';
+            
+            // Show layer section
+            document.getElementById('layerSection').style.display = 'block';
+        } else {
+            alert('Error creating layer: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error creating layer: ' + error.message);
+    });
+}
+
+function loadLayers() {
+    const layerList = document.getElementById('layerList');
+    layerList.innerHTML = '';
+    
+    layers.forEach(layer => {
+        const layerItem = document.createElement('div');
+        layerItem.className = 'layer-item';
+        layerItem.innerHTML = `
+            <div>
+                <strong>${layer.name}</strong> - ${layer.layer_type}
+                <br><small>Objects: ${layer.object_count}</small>
+            </div>
+            <div>
+                <button class="btn btn-primary" onclick="optimizeLayer('${layer.layer_id}')">Optimize</button>
+                <button class="btn btn-info" onclick="viewLayerDetails('${layer.layer_id}')">View</button>
+            </div>
+        `;
+        layerList.appendChild(layerItem);
+    });
+}
+
+function createDefaultLayers() {
+    // Create base layer
+    fetch('/layers/api/layers', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: 'Base Layer',
+            layer_type: 'base',
+            description: 'Full DXF path cutting'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            layers.push(data.layer);
+            loadLayers();
+            loadStatistics();
+            document.getElementById('layerSection').style.display = 'block';
+        }
+    });
+}
+
+function assignSelectedToLayers() {
+    if (selectedObjects.size === 0) {
+        alert('Please select objects first');
+        return;
+    }
+    alert('Object assignment feature - coming soon!');
+}
+
+function runNestingOptimization() {
+    if (layers.length === 0) {
+        alert('Please create layers first');
+        return;
+    }
+    
+    showProgressModal();
+    document.getElementById('progressText').textContent = 'Running nesting optimization...';
+    
+    setTimeout(() => {
+        const nestingResults = document.getElementById('nestingResults');
+        nestingResults.innerHTML = `
+            <div class="results-grid">
+                <div class="result-item">
+                    <div class="result-value">87.5%</div>
+                    <div class="result-label">Material Utilization</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-value">2</div>
+                    <div class="result-label">Sheets Required</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-value">$245.50</div>
+                    <div class="result-label">Total Cost</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-value">15.2 min</div>
+                    <div class="result-label">Cutting Time</div>
+                </div>
+            </div>
+        `;
+        closeProgressModal();
+        
+        // Show next sections
+        document.getElementById('gcodeSection').style.display = 'block';
+        document.getElementById('costSection').style.display = 'block';
+    }, 2000);
+}
+
+function compareAlgorithms() {
+    alert('Algorithm comparison feature - coming soon!');
+}
+
+function generateReport() {
+    alert('Report generation feature - coming soon!');
+}
+
+// G-Code generation functions
+function generateGCode() {
+    if (layers.length === 0) {
+        alert('Please create and optimize layers first');
+        return;
+    }
+    
+    showProgressModal();
+    document.getElementById('progressText').textContent = 'Generating G-Code...';
+    
+    // Call API to generate G-code
+    fetch('/layers/api/generate-gcode', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            layer_id: layers[0].layer_id // Use first layer for now
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const gcodeResults = document.getElementById('gcodeResults');
+            gcodeResults.innerHTML = `
+                <div class="results-grid">
+                    <div class="result-item">
+                        <div class="result-value">${data.line_count}</div>
+                        <div class="result-label">G-Code Lines</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">${data.estimated_time}</div>
+                        <div class="result-label">Estimated Time</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">3</div>
+                        <div class="result-label">Tool Changes</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">85%</div>
+                        <div class="result-label">Efficiency</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button class="btn btn-success" onclick="downloadGCode()">Download G-Code File</button>
+                    <button class="btn btn-info" onclick="previewGCode()">Preview G-Code</button>
+                </div>
+            `;
+        } else {
+            alert('Error generating G-code: ' + data.error);
+        }
+        closeProgressModal();
+    })
+    .catch(error => {
+        alert('Error generating G-code: ' + error.message);
+        closeProgressModal();
+    });
+}
+
+function downloadGCode() {
+    alert('G-Code download feature - coming soon!');
+}
+
+function previewGCode() {
+    alert('G-Code preview feature - coming soon!');
+}
+
+// Cost analysis functions
+function calculateCosts() {
+    if (layers.length === 0) {
+        alert('Please complete layer optimization first');
+        return;
+    }
+    
+    showProgressModal();
+    document.getElementById('progressText').textContent = 'Calculating costs...';
+    
+    // Call API to calculate costs
+    fetch('/layers/api/calculate-costs', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            layer_id: layers[0].layer_id // Use first layer for now
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const costResults = document.getElementById('costResults');
+            costResults.innerHTML = `
+                <div class="results-grid">
+                    <div class="result-item">
+                        <div class="result-value">$${data.costs.total_cost.toFixed(2)}</div>
+                        <div class="result-label">Total Cost</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">$${data.costs.material_cost.toFixed(2)}</div>
+                        <div class="result-label">Material Cost</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">$${data.costs.cutting_cost.toFixed(2)}</div>
+                        <div class="result-label">Cutting Cost</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value">$${data.costs.setup_cost.toFixed(2)}</div>
+                        <div class="result-label">Setup Cost</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button class="btn btn-primary" onclick="optimizeCosts()">Optimize Costs</button>
+                    <button class="btn btn-success" onclick="generateCostReport()">Generate Cost Report</button>
+                </div>
+            `;
+        } else {
+            alert('Error calculating costs: ' + data.error);
+        }
+        closeProgressModal();
+    })
+    .catch(error => {
+        alert('Error calculating costs: ' + error.message);
+        closeProgressModal();
+    });
+}
+
+function optimizeCosts() {
+    showProgressModal();
+    document.getElementById('progressText').textContent = 'Optimizing costs...';
+    
+    setTimeout(() => {
+        const costResults = document.getElementById('costResults');
+        costResults.innerHTML = `
+            <div class="results-grid">
+                <div class="result-item">
+                    <div class="result-value">$198.75</div>
+                    <div class="result-label">Optimized Total</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-value">$145.20</div>
+                    <div class="result-label">Material Cost</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-value">$38.55</div>
+                    <div class="result-label">Cutting Cost</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-value">$15.00</div>
+                    <div class="result-label">Setup Cost</div>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding: 10px; background: #d4edda; border-radius: 5px;">
+                <strong>Cost Savings: $46.75 (19.0%)</strong>
+            </div>
+            <div style="margin-top: 15px;">
+                <button class="btn btn-success" onclick="generateCostReport()">Generate Cost Report</button>
+            </div>
+        `;
+        closeProgressModal();
+    }, 2000);
+}
+
+function generateCostReport() {
+    alert('Cost report generation feature - coming soon!');
+}
+
+function optimizeLayer(layerId) {
+    showProgressModal();
+    // Here you would make API call to optimize specific layer
+    setTimeout(() => {
+        closeProgressModal();
+        alert('Layer optimization completed!');
+    }, 1500);
+}
+
+function viewLayerDetails(layerId) {
+    alert('Layer details view - coming soon!');
+}
+
+function showProgressModal() {
+    document.getElementById('progressModal').style.display = 'block';
+}
+
+function closeProgressModal() {
+    document.getElementById('progressModal').style.display = 'none';
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const createModal = document.getElementById('createLayerModal');
+    const progressModal = document.getElementById('progressModal');
+    
+    if (event.target === createModal) {
+        createModal.style.display = 'none';
+    }
+    if (event.target === progressModal) {
+        progressModal.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

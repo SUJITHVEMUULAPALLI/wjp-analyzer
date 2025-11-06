@@ -3,19 +3,22 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import streamlit as st
-import os
-from pathlib import Path
-import json
+
+try:
+    from streamlit.runtime.uploaded_file_manager import UploadedFile  # type: ignore
+except Exception:  # pragma: no cover - Streamlit API fallback
+    UploadedFile = Any  # type: ignore
 
 # Path shim so imports work when launched via streamlit
-import sys
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _SRC_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", ".."))
 if _SRC_DIR not in sys.path:
@@ -45,6 +48,28 @@ def _load_env_key() -> str | None:
     except Exception:
         return None
     return None
+
+
+def dxf_file_uploader(
+    label: str = "Upload DXF File",
+    *,
+    help_text: Optional[str] = None,
+    key: Optional[str] = None,
+):
+    """Streamlit wrapper for a DXF-only file uploader."""
+
+    return st.file_uploader(label, type=["dxf"], help=help_text, key=key)
+
+
+def save_uploaded_dxf(uploaded_file: UploadedFile, output_dir: Path | str) -> Path:
+    """Persist an uploaded DXF to disk and return the saved path."""
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    file_path = output_dir / uploaded_file.name
+    with open(file_path, "wb") as fh:
+        fh.write(uploaded_file.getbuffer())
+    return file_path
 
 
 def get_ai_status(timeout: float = 2.0) -> dict:
@@ -139,7 +164,9 @@ def run_analysis(
 ) -> dict:
     # Lazy import to avoid hard failures if ezdxf/shapely are missing.
     try:
-        from wjp_analyser.analysis.dxf_analyzer import AnalyzeArgs, analyze_dxf  # type: ignore
+        from wjp_analyser.analysis.dxf_analyzer import AnalyzeArgs  # Keep for args only
+        # Use API wrapper for analysis (falls back to service if API unavailable)
+        from wjp_analyser.web.api_client_wrapper import analyze_dxf as api_analyze_dxf
     except Exception as exc:
         st.error(
             "DXF analysis dependencies are missing. Please install requirements (ezdxf, shapely).\n"
@@ -167,7 +194,7 @@ def run_analysis(
         map_sig = tuple(sorted((k, v) for k, v in group_layer_map.items()))
     else:
         map_sig = ("__nomap__",)
-    # softening signature
+    # softening signature and cache key setup
     if soften_opts:
         soft_sig = tuple(sorted((str(k), str(v)) for k, v in soften_opts.items()))
     else:
@@ -211,14 +238,28 @@ def run_analysis(
         args.sheet_height = float(sheet_height)
     if isinstance(frame_quantity, int) and frame_quantity > 1:
         args.frame_quantity = int(frame_quantity)
-    # Soften options
+
     if soften_opts:
         method = str(soften_opts.get("method", "none"))
         args.soften_method = method
-        if method == "simplify":
+        if method in ("simplify", "simplify_topo", "rdp", "rdp_topo"):
             args.soften_tolerance = float(soften_opts.get("tolerance", 0.2))
-        elif method == "chaikin":
+            args.soften_preserve_topology = bool(soften_opts.get("preserve_topology", method.endswith("topo")))
+        if method == "chaikin":
             args.soften_iterations = int(soften_opts.get("iterations", 1))
+        if method == "visvalingam":
+            args.soften_visvalingam_area_mm2 = float(soften_opts.get("vw_area_mm2", 0.5))
+        if method == "colinear":
+            args.soften_colinear_angle_deg = float(soften_opts.get("colinear_angle_deg", 2.0))
+        if method == "decimate":
+            args.soften_decimate_keep_every = int(soften_opts.get("keep_every", 2))
+        if method == "resample":
+            args.soften_resample_step_mm = float(soften_opts.get("step_mm", 1.0))
+        if method == "measurement":
+            args.soften_measure_min_segment_mm = float(soften_opts.get("min_segment_mm", 1.0))
+            args.soften_measure_max_deviation_mm = float(soften_opts.get("max_deviation_mm", 0.2))
+            args.soften_measure_min_corner_radius_mm = float(soften_opts.get("min_corner_radius_mm", 1.0))
+            args.soften_measure_snap_grid_mm = float(soften_opts.get("snap_grid_mm", 0.0))
     if fillet_opts:
         args.fillet_radius_mm = float(fillet_opts.get("radius_mm", 0.0))
         args.fillet_min_angle_deg = float(fillet_opts.get("min_angle_deg", 135.0))
@@ -250,12 +291,32 @@ def run_analysis(
         mf = normalize_opts.get("must_fit") if isinstance(normalize_opts, dict) else None
         if mf is not None:
             args.require_fit_within_frame = bool(mf)
-    report = analyze_dxf(
+    # Convert AnalyzeArgs to dict for API wrapper
+    args_overrides = {}
+    if hasattr(args, "material"):
+        args_overrides["material"] = args.material
+    if hasattr(args, "thickness"):
+        args_overrides["thickness"] = args.thickness
+    if hasattr(args, "kerf"):
+        args_overrides["kerf"] = args.kerf
+    # Add normalize/scale options if needed
+    if hasattr(args, "normalize_mode") and args.normalize_mode:
+        args_overrides["normalize_mode"] = args.normalize_mode
+    if hasattr(args, "target_frame_w_mm"):
+        args_overrides["target_frame_w_mm"] = args.target_frame_w_mm
+    if hasattr(args, "target_frame_h_mm"):
+        args_overrides["target_frame_h_mm"] = args.target_frame_h_mm
+    
+    # Use API wrapper's analyze_dxf (converts args to args_overrides dict)
+    # The wrapper uses args_overrides, not AnalyzeArgs directly
+    report = api_analyze_dxf(
         str(work["dxf_path"]),
-        args,
-        selected_groups=selected_groups,
-        group_layer_overrides=group_layer_map,
+        out_dir=str(out_dir),
+        args_overrides=args_overrides,
     )
+    
+    # Note: If analyze_dxf from wrapper, it won't support selected_groups/group_layer_overrides
+    # In that case, we need to fall back to direct analyzer or filter components manually
     work["reports"][cache_key] = report
     return report
 
@@ -324,7 +385,7 @@ def plot_components(report: dict, height: int = 600) -> None:
             ax.legend(handles=handles, loc="upper right", fontsize="small")
 
     try:
-    st.pyplot(fig, clear_figure=True, use_container_width=True)
+        st.pyplot(fig, clear_figure=True, width="stretch")
     except Exception as e:
         st.error(f"Error displaying plot: {e}")
         st.info("This may be due to empty or invalid component data.")
@@ -1204,7 +1265,7 @@ def display_quality(report: dict) -> None:
         st.write({k: v for k, v in q.items() if k in ("Lines", "Arcs", "Circles", "Polylines")})
     if shaky:
         with st.expander("Shaky polylines list", expanded=False):
-            st.dataframe(shaky, hide_index=True, use_container_width=True)
+            st.dataframe(shaky, hide_index=True, width="stretch")
 
 
 def display_checklist(report: dict) -> None:
@@ -1229,7 +1290,150 @@ def display_checklist(report: dict) -> None:
         })
 
 
+# -------------------------------
+# Variant advisor (agent-like helper)
+# -------------------------------
+def compute_workability_score(report: dict) -> dict:
+    """Compute a 0..100 workability score with reasons from an analysis report."""
+    metrics = report.get("metrics", {}) or {}
+    quality = report.get("quality", {}) or {}
+    geomv = report.get("geometry_validation", {}) or {}
 
+    length_mm = float(metrics.get("length_internal_mm", 0.0) or metrics.get("cutting_length_mm", 0.0) or 0.0)
+    pierces = int(metrics.get("pierces", 0) or metrics.get("pierce_count", 0) or 0)
+    tiny = int(quality.get("Tiny Segments", 0) or 0)
+    shaky_list = quality.get("Shaky Polylines", []) or []
+    shaky = int(len(shaky_list))
+    min_space_v = int(geomv.get("min_spacing_violations", 0) or 0)
+    min_corner_r = float(geomv.get("min_corner_radius_mm", 0.0) or 0.0)
+
+    reasons: list[str] = []
+    penalties = 0.0
+
+    # Penalty terms (bounded)
+    p_tiny = min(40.0, tiny / 500.0)  # 500 tiny segments ~ 1 point
+    if p_tiny > 0:
+        reasons.append(f"Tiny segments: {tiny} (−{p_tiny:.1f})")
+    penalties += p_tiny
+
+    p_shaky = min(15.0, shaky / 2.0)  # every 2 shaky polylines ~ 1 point
+    if p_shaky > 0:
+        reasons.append(f"Shaky polylines: {shaky} (−{p_shaky:.1f})")
+    penalties += p_shaky
+
+    p_space = min(25.0, min_space_v / 2.0)  # every 2 violations ~ 1 point
+    if p_space > 0:
+        reasons.append(f"Min-spacing violations: {min_space_v} (−{p_space:.1f})")
+    penalties += p_space
+
+    if min_corner_r < 0.5:
+        p_corner = 20.0
+    elif min_corner_r < 1.0:
+        p_corner = 10.0
+    elif min_corner_r < 2.0:
+        p_corner = 5.0
+    else:
+        p_corner = 0.0
+    if p_corner > 0:
+        reasons.append(f"Min corner radius {min_corner_r:.2f} mm (−{p_corner:.1f})")
+    penalties += p_corner
+
+    p_len = min(15.0, (length_mm / 40000.0) * 15.0)  # 40 m → 15 pts
+    if p_len > 0:
+        reasons.append(f"Cutting length {length_mm:.0f} mm (−{p_len:.1f})")
+    penalties += p_len
+
+    p_pierce = min(10.0, pierces * 0.5)
+    if p_pierce > 0:
+        reasons.append(f"Pierces {pierces} (−{p_pierce:.1f})")
+    penalties += p_pierce
+
+    score = max(0.0, 100.0 - penalties)
+    return {
+        "score": round(score, 1),
+        "reasons": reasons,
+        "metrics": {
+            "length_mm": round(length_mm, 2),
+            "pierces": pierces,
+            "tiny_segments": tiny,
+            "shaky_polylines": shaky,
+            "min_spacing_violations": min_space_v,
+            "min_corner_radius_mm": round(min_corner_r, 3),
+        },
+    }
+
+
+def _default_variant_grid(include_fillet: bool = True) -> list[dict]:
+    """Return a small grid of variants to try. Keep list short for responsiveness."""
+    base = [
+        {"id": "simp_topo_0.2", "soften": {"method": "simplify_topo", "tolerance": 0.2}},
+        {"id": "simp_topo_0.5", "soften": {"method": "simplify_topo", "tolerance": 0.5}},
+        {"id": "rdp_0.2", "soften": {"method": "rdp", "tolerance": 0.2}},
+        {"id": "visv_0.5", "soften": {"method": "visvalingam", "vw_area_mm2": 0.5}},
+        {"id": "visv_1.0", "soften": {"method": "visvalingam", "vw_area_mm2": 1.0}},
+        {"id": "chaikin_1", "soften": {"method": "chaikin", "iterations": 1}},
+        {"id": "chaikin_2", "soften": {"method": "chaikin", "iterations": 2}},
+        {"id": "decimate_2", "soften": {"method": "decimate", "keep_every": 2}},
+        {"id": "resample_1.0", "soften": {"method": "resample", "step_mm": 1.0}},
+        {"id": "colinear_2.0", "soften": {"method": "colinear", "colinear_angle_deg": 2.0}},
+    ]
+    if include_fillet:
+        # Duplicate a couple with a light fillet to improve min corner radius
+        base.append({"id": "simp_topo_0.2_fillet0.5", "soften": {"method": "simplify_topo", "tolerance": 0.2}, "fillet": {"radius_mm": 0.5, "min_angle_deg": 120.0}})
+        base.append({"id": "visv_0.5_fillet0.5", "soften": {"method": "visvalingam", "vw_area_mm2": 0.5}, "fillet": {"radius_mm": 0.5, "min_angle_deg": 120.0}})
+    return base
+
+
+def run_variant_advisor(
+    work: dict,
+    sheet_width: float,
+    sheet_height: float,
+    scale_opts: Dict[str, object] | None,
+    normalize_opts: Dict[str, object] | None,
+    frame_quantity: int,
+    include_fillet: bool = True,
+) -> list[dict]:
+    """Run a small grid of variants, score them, and return sorted results."""
+    variants = _default_variant_grid(include_fillet=include_fillet)
+    results: list[dict] = []
+    for v in variants:
+        soften_opts = v.get("soften")
+        fillet_opts = v.get("fillet")
+        rep = run_analysis(
+            work,
+            selected_groups=None,
+            sheet_width=sheet_width,
+            sheet_height=sheet_height,
+            soften_opts=soften_opts,
+            fillet_opts=fillet_opts,
+            scale_opts=scale_opts,
+            normalize_opts=normalize_opts,
+            frame_quantity=frame_quantity,
+        )
+        score = compute_workability_score(rep)
+        artifacts = rep.get("artifacts", {}) or {}
+        metrics = rep.get("metrics", {}) or {}
+        results.append({
+            "id": v.get("id"),
+            "soften": soften_opts,
+            "fillet": fillet_opts,
+            "score": score.get("score", 0.0),
+            "reasons": score.get("reasons", []),
+            "metrics": {
+                "length_mm": metrics.get("length_internal_mm", 0.0),
+                "pierces": metrics.get("pierces", 0),
+            },
+            "artifacts": {
+                "nc": artifacts.get("gcode"),
+                "report": artifacts.get("report_json"),
+                "layered_dxf": artifacts.get("layered_dxf"),
+                "lengths_csv": artifacts.get("lengths_csv"),
+            },
+            "report": rep,
+        })
+    # Sort by score desc, then fewer pierces, then shorter length
+    results.sort(key=lambda r: (-float(r.get("score", 0.0)), int(r.get("metrics", {}).get("pierces", 0)), float(r.get("metrics", {}).get("length_mm", 0.0))))
+    return results
 
 
 

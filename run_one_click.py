@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+"""
+DEPRECATED: Use 'wjp' command instead:
+  python -m wjp_analyser.cli.wjp_cli web
+
+This launcher is kept for backward compatibility.
+"""
+import warnings
+warnings.warn(
+    "run_one_click.py is deprecated. Use 'wjp' command instead:\n"
+    "  python -m wjp_analyser.cli.wjp_cli web",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 """One-click launcher for the Waterjet DXF Analyzer project."""
 
 from __future__ import annotations
@@ -156,9 +170,63 @@ def run_demo(skip_install: bool, upgrade: bool, open_preview: bool) -> None:
         maybe_open_preview(output_dir)
 
 
+def _streamlit_command() -> list[str]:
+    base_dir = os.path.dirname(sys.executable)
+    if os.name == "nt":
+        candidate = os.path.join(base_dir, "streamlit.exe")
+    else:
+        candidate = os.path.join(base_dir, "streamlit")
+    if os.path.exists(candidate):
+        return [candidate]
+    return [sys.executable, "-m", "streamlit"]
+
+
+def launch_streamlit_unified(host: str, port: int, no_browser: bool, guided: bool = False, batch_guided: bool = False) -> int:
+    repo_root = os.path.dirname(__file__)
+    script_path = os.path.join(repo_root, "src", "wjp_analyser", "web", "unified_web_app.py")
+    if not os.path.exists(script_path):
+        print(f"[ui] Streamlit app not found at {script_path}.")
+        return 1
+
+    cmd = _streamlit_command() + [
+        "run",
+        script_path,
+        "--server.address", host,
+        "--server.port", str(port),
+    ]
+    if no_browser:
+        cmd.extend(["--server.headless", "true"])
+
+    env = os.environ.copy()
+    env.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "0")
+    if guided:
+        env["WJP_GUIDED_MODE"] = "true"
+    if batch_guided:
+        env["WJP_BATCH_GUIDED_MODE"] = "true"
+
+    print(f"[ui] Starting Streamlit UI at http://{host}:{port}/")
+    try:
+        subprocess.run(cmd, check=True, env=env)
+        return 0
+    except subprocess.CalledProcessError as exc:
+        print(f"[ui] Streamlit exited with status {exc.returncode}")
+        return exc.returncode
+    except KeyboardInterrupt:
+        print("\n[ui] Stopping Streamlit UI...")
+        return 0
+
+
 def launch_web_ui(host: str, port: int, open_browser: bool) -> None:
     """Launch the Flask web UI using the existing runner helpers."""
-    from run_web_ui import flask_app, wait_and_open
+    from wjp_analyser.web.app import app as flask_app
+    
+    def wait_and_open(url: str) -> None:
+        import time
+        try:
+            time.sleep(1.5)
+            webbrowser.open(url)
+        except Exception:
+            pass
 
     url = f"http://{host}:{port}/"
     print("[ui] Starting Waterjet DXF Analyzer web UI...")
@@ -174,9 +242,12 @@ def launch_web_ui(host: str, port: int, open_browser: bool) -> None:
         print("\n[ui] Stopping web server...")
 
 
-def run_ui(skip_install: bool, upgrade: bool, host: str, port: int, no_browser: bool) -> None:
+def run_ui(skip_install: bool, upgrade: bool, host: str, port: int, no_browser: bool, ui_backend: str, guided: bool = False, batch_guided: bool = False) -> None:
     install_dependencies(skip_install, upgrade)
-    launch_web_ui(host=host, port=port, open_browser=not no_browser)
+    if ui_backend == "flask":
+        launch_web_ui(host=host, port=port, open_browser=not no_browser)
+    else:
+        launch_streamlit_unified(host=host, port=port, no_browser=no_browser, guided=guided, batch_guided=batch_guided)
 
 
 def parse_args() -> argparse.Namespace:
@@ -185,7 +256,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=["ui", "demo", "guided", "batch-guided", "all-interfaces"],
+        choices=["ui", "demo", "guided", "batch-guided"],
         default="ui",
         help="Which workflow to run (default: ui).",
     )
@@ -207,7 +278,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--port",
         type=int,
-        default=5000,
+        default=8501,
         help="Port for the web UI (ui mode).",
     )
     parser.add_argument(
@@ -220,79 +291,28 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Open the generated preview image after the demo pipeline completes.",
     )
+    parser.add_argument(
+        "--ui-backend",
+        choices=["streamlit", "flask"],
+        default="streamlit",
+        help="Choose UI backend for --mode ui (default: streamlit).",
+    )
     return parser.parse_args()
 
 
 def launch_guided_interface(host: str, port: int, no_browser: bool) -> None:
-    """Launch the guided individual interface using run_web_ui."""
-    import subprocess
-    import sys
-    
-    cmd = [
-        sys.executable, "run_web_ui.py",
-        "--host", host,
-        "--port", str(port),
-        "--guided"
-    ]
-    
-    if no_browser:
-        cmd.append("--no-browser")
-    
     print(f"[guided] Starting Guided Individual Interface on {host}:{port}")
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as exc:
-        print(f"[guided] Failed to launch guided interface: {exc}")
-    except KeyboardInterrupt:
-        print("\n[guided] Stopping guided interface...")
+    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, guided=True)
 
 
 def launch_batch_guided_interface(host: str, port: int, no_browser: bool) -> None:
-    """Launch the guided batch interface using run_web_ui."""
-    import subprocess
-    import sys
-    
-    cmd = [
-        sys.executable, "run_web_ui.py",
-        "--host", host,
-        "--port", str(port),
-        "--batch-guided"
-    ]
-    
-    if no_browser:
-        cmd.append("--no-browser")
-    
     print(f"[batch-guided] Starting Guided Batch Interface on {host}:{port}")
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as exc:
-        print(f"[batch-guided] Failed to launch batch guided interface: {exc}")
-    except KeyboardInterrupt:
-        print("\n[batch-guided] Stopping batch guided interface...")
+    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, batch_guided=True)
 
 
 def launch_all_interfaces(host: str, port: int, no_browser: bool) -> None:
-    """Launch all interfaces using run_web_ui."""
-    import subprocess
-    import sys
-    
-    cmd = [
-        sys.executable, "run_web_ui.py",
-        "--host", host,
-        "--port", str(port),
-        "--all-interfaces"
-    ]
-    
-    if no_browser:
-        cmd.append("--no-browser")
-    
-    print(f"[all-interfaces] Starting All Interfaces from port {port}")
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as exc:
-        print(f"[all-interfaces] Failed to launch all interfaces: {exc}")
-    except KeyboardInterrupt:
-        print("\n[all-interfaces] Stopping all interfaces...")
+    print("[all-interfaces] Deprecated: launching unified Streamlit app instead.")
+    launch_streamlit_unified(host=host, port=port, no_browser=no_browser)
 
 
 def main() -> int:
@@ -306,11 +326,17 @@ def main() -> int:
     elif args.mode == "batch-guided":
         install_dependencies(args.skip_install, args.upgrade)
         launch_batch_guided_interface(args.host, args.port, args.no_browser)
-    elif args.mode == "all-interfaces":
-        install_dependencies(args.skip_install, args.upgrade)
-        launch_all_interfaces(args.host, args.port, args.no_browser)
     else:
-        run_ui(args.skip_install, args.upgrade, args.host, args.port, args.no_browser)
+        run_ui(
+            args.skip_install,
+            args.upgrade,
+            args.host,
+            args.port,
+            args.no_browser,
+            ui_backend=args.ui_backend,
+            guided=False,
+            batch_guided=False,
+        )
 
     return 0
 

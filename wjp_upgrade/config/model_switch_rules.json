@@ -1,0 +1,10 @@
+{
+  "rules": [
+    { "task": "UI text", "model": "gpt-4o" },
+    { "task": "large doc generation", "model": "gpt-4o-mini" },
+    { "task": "code refactor", "model": "gpt-5" },
+    { "task": "cost analysis", "model": "local_mcp" }
+  ]
+}
+
+

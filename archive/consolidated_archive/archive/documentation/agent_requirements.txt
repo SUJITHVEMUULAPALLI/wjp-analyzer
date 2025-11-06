@@ -1,0 +1,7 @@
+Pillow
+ezdxf
+matplotlib
+numpy
+opencv-python
+scipy
+shapely

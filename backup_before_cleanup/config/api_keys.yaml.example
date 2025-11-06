@@ -1,0 +1,12 @@
+openai:
+  # Your OpenAI API key (get from https://platform.openai.com/api-keys)
+  api_key: "sk-..."
+
+# Optional Flask secret key (32+ chars for production)
+secret_key: "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_KEY"
+
+# Optional: Ollama defaults
+ollama:
+  base_url: "http://localhost:11434"
+  model: "gpt-oss-20b"
+

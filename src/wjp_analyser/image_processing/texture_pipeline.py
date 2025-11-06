@@ -36,6 +36,7 @@ except Exception:  # pragma: no cover
 from .potrace_pipeline import (
     ensure_potrace,
     preprocess_image as potrace_preprocess_image,  # reuse if useful
+    potrace_vectorize,
 )
 
 
@@ -226,13 +227,24 @@ def _vectorize_binary_mask(mask: np.ndarray, out_dir: Path, basename: str) -> Op
     potrace_bin = ensure_potrace()
     dxf_path = out_dir / f"{basename}.dxf"
     if potrace_bin:
-        # write PBM and call potrace
+        # Write PBM and call potrace via shared helper (handles WSL paths)
         pbm = out_dir / f"{basename}.pbm"
         cv2.imwrite(str(pbm), mask)
-        import subprocess
-
-        subprocess.run([potrace_bin, "-b", "dxf", "-o", str(dxf_path), str(pbm)], check=True)
-        return dxf_path
+        try:
+            svg_path, dxf_out = potrace_vectorize(
+                pbm_path=pbm,
+                out_dir=out_dir,
+                want_svg=False,
+                want_dxf=True,
+                turdsize=2,
+                alphamax=1.0,
+                opttolerance=0.2,
+            )
+            if dxf_out and Path(dxf_out).exists():
+                return dxf_out
+        except Exception:
+            # Fall back to OpenCV path below
+            pass
     # fallback: OpenCV contours → DXF
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:

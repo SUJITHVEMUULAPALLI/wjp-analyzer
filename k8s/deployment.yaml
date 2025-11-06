@@ -1,0 +1,290 @@
+# Kubernetes Deployment for WJP ANALYSER
+# ======================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wjp-web
+  namespace: wjp-analyser
+  labels:
+    app: wjp-web
+    version: v1.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: wjp-web
+  template:
+    metadata:
+      labels:
+        app: wjp-web
+        version: v1.0.0
+    spec:
+      containers:
+      - name: wjp-web
+        image: wjp-analyser:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: WJP_DATABASE_TYPE
+          value: "postgresql"
+        - name: WJP_DATABASE_HOST
+          value: "postgres-service"
+        - name: WJP_DATABASE_PORT
+          value: "5432"
+        - name: WJP_DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-name
+        - name: WJP_DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-username
+        - name: WJP_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-password
+        - name: WJP_REDIS_HOST
+          value: "redis-service"
+        - name: WJP_REDIS_PORT
+          value: "6379"
+        - name: WJP_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: redis-password
+        - name: WJP_JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: jwt-secret-key
+        - name: WJP_MASTER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: master-password
+        - name: WJP_SERVER_DEBUG
+          value: "false"
+        - name: WJP_LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: output
+          mountPath: /app/output
+        - name: uploads
+          mountPath: /app/uploads
+        - name: cache
+          mountPath: /app/cache
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: wjp-logs-pvc
+      - name: output
+        persistentVolumeClaim:
+          claimName: wjp-output-pvc
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: wjp-uploads-pvc
+      - name: cache
+        persistentVolumeClaim:
+          claimName: wjp-cache-pvc
+      imagePullSecrets:
+      - name: wjp-registry-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wjp-worker
+  namespace: wjp-analyser
+  labels:
+    app: wjp-worker
+    version: v1.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: wjp-worker
+  template:
+    metadata:
+      labels:
+        app: wjp-worker
+        version: v1.0.0
+    spec:
+      containers:
+      - name: wjp-worker
+        image: wjp-analyser:latest
+        command: ["celery", "-A", "src.wjp_analyser.workers.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+        env:
+        - name: WJP_DATABASE_TYPE
+          value: "postgresql"
+        - name: WJP_DATABASE_HOST
+          value: "postgres-service"
+        - name: WJP_DATABASE_PORT
+          value: "5432"
+        - name: WJP_DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-name
+        - name: WJP_DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-username
+        - name: WJP_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-password
+        - name: WJP_REDIS_HOST
+          value: "redis-service"
+        - name: WJP_REDIS_PORT
+          value: "6379"
+        - name: WJP_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: redis-password
+        - name: WJP_JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: jwt-secret-key
+        - name: WJP_MASTER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: master-password
+        - name: WJP_LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: output
+          mountPath: /app/output
+        - name: uploads
+          mountPath: /app/uploads
+        - name: cache
+          mountPath: /app/cache
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: wjp-logs-pvc
+      - name: output
+        persistentVolumeClaim:
+          claimName: wjp-output-pvc
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: wjp-uploads-pvc
+      - name: cache
+        persistentVolumeClaim:
+          claimName: wjp-cache-pvc
+      imagePullSecrets:
+      - name: wjp-registry-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wjp-beat
+  namespace: wjp-analyser
+  labels:
+    app: wjp-beat
+    version: v1.0.0
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wjp-beat
+  template:
+    metadata:
+      labels:
+        app: wjp-beat
+        version: v1.0.0
+    spec:
+      containers:
+      - name: wjp-beat
+        image: wjp-analyser:latest
+        command: ["celery", "-A", "src.wjp_analyser.workers.celery_app", "beat", "--loglevel=info"]
+        env:
+        - name: WJP_DATABASE_TYPE
+          value: "postgresql"
+        - name: WJP_DATABASE_HOST
+          value: "postgres-service"
+        - name: WJP_DATABASE_PORT
+          value: "5432"
+        - name: WJP_DATABASE_NAME
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-name
+        - name: WJP_DATABASE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-username
+        - name: WJP_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: database-password
+        - name: WJP_REDIS_HOST
+          value: "redis-service"
+        - name: WJP_REDIS_PORT
+          value: "6379"
+        - name: WJP_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: wjp-secrets
+              key: redis-password
+        - name: WJP_LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: wjp-logs-pvc
+      imagePullSecrets:
+      - name: wjp-registry-secret

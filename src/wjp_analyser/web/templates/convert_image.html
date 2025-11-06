@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Convert Image to DXF</h2>
+    <p>File: <code>{{ file_path }}</code></p>
+    <p>This feature is currently disabled in server routes. You can still use the AI page at <a href="/ai-image">/ai-image</a>.</p>
+    <div class="form-actions">
+        <a class="link-button" href="{{ url_for('main.upload') }}">Back to Upload</a>
+        <a class="link-button" href="{{ url_for('main.index') }}">Home</a>
+    </div>
+</section>
+{% endblock %}
+
+

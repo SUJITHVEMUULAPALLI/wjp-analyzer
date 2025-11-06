@@ -7,10 +7,10 @@
 # Navigate to project directory
 cd "C:\WJP ANALYSER"
 
-# Start web interface
-C:\Python313\python.exe run_web_ui.py
+# Start web interface (Streamlit)
+C:\Python313\python.exe run_one_click.py --mode ui --ui-backend streamlit --host 127.0.0.1 --port 8501
 
-# Open browser to: http://localhost:5000
+# Open browser to: http://localhost:8501
 ```
 
 ### 2. Basic DXF Analysis
@@ -96,11 +96,14 @@ C:\Python313\python.exe -c "import requests; print(requests.get('http://localhos
 
 ### Web Interface Issues
 ```bash
-# Check if port 5000 is in use
-netstat -an | findstr :5000
+# Check if port 8501 (Streamlit) is in use
+netstat -an | findstr :8501
 
-# Start with different port
-C:\Python313\python.exe run_web_ui.py --port 5001
+# Start Streamlit on a different port
+C:\Python313\python.exe run_one_click.py --mode ui --ui-backend streamlit --port 8502
+
+# Alternatively, use Flask backend on port 5000
+C:\Python313\python.exe run_one_click.py --mode ui --ui-backend flask --port 5000
 ```
 
 ### DXF Analysis Errors
@@ -136,7 +139,7 @@ C:\Python313\python.exe main.py analyze data/samples/dxf/medallion_sample.dxf --
 
 ## 📞 Quick Help
 
-- **Web Interface**: http://localhost:5000
+- **Web Interface**: http://localhost:8501 (Streamlit default)
 - **Ollama Status**: http://localhost:11434/api/tags
 - **Project Root**: C:\WJP ANALYSER
 - **Python Path**: C:\Python313\python.exe

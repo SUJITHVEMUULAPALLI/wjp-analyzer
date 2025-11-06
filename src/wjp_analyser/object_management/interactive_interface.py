@@ -17,6 +17,11 @@ import uuid
 from .dxf_object_manager import DXFObjectManager, ObjectType, ObjectComplexity
 from .layer_manager import LayerManager, LayerType, MaterialSettings, CuttingSettings, NestingSettings
 from ..nesting import NestingEngine, MaterialUtilizationReporter
+from ..web.api_utils import (
+    DXFProcessingError,
+    calculate_costs_from_dxf,
+    generate_gcode_from_dxf,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,10 @@ from flask import Blueprint
 layers_bp = Blueprint('layers', __name__, 
                      template_folder='../../templates',
                      static_folder='../../static')
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+OUTPUT_ROOT = os.path.join(PROJECT_ROOT, 'output')
+UPLOAD_ROOT = os.path.join(PROJECT_ROOT, 'uploads')
 
 def create_app():
     """Create and configure the Flask blueprint."""
@@ -60,9 +69,8 @@ def upload_dxf():
             return jsonify({'success': False, 'error': 'Please upload a DXF file'})
         
         # Save uploaded file
-        upload_dir = 'uploads'
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, f"{uuid.uuid4().hex}.dxf")
+        os.makedirs(UPLOAD_ROOT, exist_ok=True)
+        file_path = os.path.join(UPLOAD_ROOT, f"{uuid.uuid4().hex}.dxf")
         file.save(file_path)
         
         # Initialize managers
@@ -624,72 +632,61 @@ def get_utilization_analysis(layer_id):
 
 @layers_bp.route('/api/generate-gcode', methods=['POST'])
 def api_generate_gcode():
-    """Generate G-code for a given layer (placeholder implementation)."""
+    """Generate G-code for the currently loaded DXF."""
     try:
-        data = request.get_json(silent=True) or {}
-        layer_id = data.get('layer_id')
-        if not layer_id:
-            return jsonify({'success': False, 'error': 'Layer ID is required'}), 400
+        if not current_dxf_path or not os.path.exists(current_dxf_path):
+            return jsonify({'success': False, 'error': 'No DXF file loaded'}), 400
 
-        if not layer_manager:
-            return jsonify({'success': False, 'error': 'No layer manager available'}), 400
+        payload = request.get_json(silent=True) or {}
+        feed = float(payload.get('feed', 1200.0))
+        m_on = payload.get('m_on', 'M62')
+        m_off = payload.get('m_off', 'M63')
+        pierce_ms = int(payload.get('pierce_ms', 500))
 
-        layer = layer_manager.get_layer(layer_id)
-        if not layer:
-            return jsonify({'success': False, 'error': 'Layer not found'}), 404
-
-        # Minimal stub response compatible with frontend
-        gcode_lines = [
-            'G21 ; Set units to millimeters',
-            'G90 ; Absolute positioning',
-            'G0 X0 Y0 ; Move to origin',
-            'M3 S1000 ; Start spindle',
-            'G1 X10 Y10 F1000 ; Cut line',
-            'M5 ; Stop spindle',
-            'G0 X0 Y0 ; Return to origin',
-            'M30 ; End program'
-        ]
+        result = generate_gcode_from_dxf(
+            current_dxf_path,
+            OUTPUT_ROOT,
+            feed=feed,
+            m_on=m_on,
+            m_off=m_off,
+            pierce_ms=pierce_ms,
+        )
 
         return jsonify({
             'success': True,
-            'gcode': gcode_lines,
-            'line_count': len(gcode_lines),
-            'estimated_time': '12.5 min'
+            'gcode': result['gcode_preview'],
+            'line_count': result['line_count'],
+            'estimated_time': f"{result['estimated_time_minutes']:.1f} min",
+            'gcode_id': result['gcode_id'],
+            'gcode_path': result['gcode_path'],
+            'metrics': result['metrics'],
         })
-    except Exception as e:
-        logger.error(f"G-code generation failed: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    except (DXFProcessingError, ValueError, FileNotFoundError) as exc:
+        logger.error(f"G-code generation failed: {exc}")
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        logger.error(f"G-code generation failed: {exc}")
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 
 @layers_bp.route('/api/calculate-costs', methods=['POST'])
 def api_calculate_costs():
-    """Calculate costs for a given layer (placeholder implementation)."""
+    """Calculate manufacturing costs for the currently loaded DXF."""
     try:
-        data = request.get_json(silent=True) or {}
-        layer_id = data.get('layer_id')
-        if not layer_id:
-            return jsonify({'success': False, 'error': 'Layer ID is required'}), 400
+        if not current_dxf_path or not os.path.exists(current_dxf_path):
+            return jsonify({'success': False, 'error': 'No DXF file loaded'}), 400
 
-        if not layer_manager:
-            return jsonify({'success': False, 'error': 'No layer manager available'}), 400
-
-        layer = layer_manager.get_layer(layer_id)
-        if not layer:
-            return jsonify({'success': False, 'error': 'Layer not found'}), 404
-
-        # Minimal stub response compatible with frontend
-        costs = {
-            'total_cost': 245.50,
-            'material_cost': 180.25,
-            'cutting_cost': 45.75,
-            'setup_cost': 19.50,
-            'waste_cost': 12.00,
-        }
+        payload = request.get_json(silent=True) or {}
+        from wjp_analyser.services.costing_service import estimate_cost
+        costs = estimate_cost(current_dxf_path)
 
         return jsonify({'success': True, 'costs': costs})
-    except Exception as e:
-        logger.error(f"Cost calculation failed: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    except (DXFProcessingError, ValueError, FileNotFoundError) as exc:
+        logger.error(f"Cost calculation failed: {exc}")
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as exc:
+        logger.error(f"Cost calculation failed: {exc}")
+        return jsonify({'success': False, 'error': str(exc)}), 500
 
 
 def create_default_layers(object_manager, all_objects):

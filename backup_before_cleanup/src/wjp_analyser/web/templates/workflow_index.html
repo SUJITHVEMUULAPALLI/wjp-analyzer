@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waterjet Analyser - Workflow Selection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .workflow-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        .workflow-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .workflow-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+            transform: translateY(-2px);
+        }
+        .workflow-card h3 {
+            color: #1f2937;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        .workflow-card p {
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        .workflow-steps {
+            list-style: none;
+            padding: 0;
+            margin: 1rem 0;
+        }
+        .workflow-steps li {
+            padding: 0.5rem 0;
+            color: #374151;
+            position: relative;
+            padding-left: 1.5rem;
+        }
+        .workflow-steps li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+        .btn-workflow {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        .btn-workflow:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            transform: translateY(-1px);
+        }
+        .hero-section {
+            text-align: center;
+            padding: 3rem 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-bottom: 3rem;
+        }
+        .hero-section h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+        .hero-section p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-section">
+        <h1>🚀 Waterjet Analyser</h1>
+        <p>Advanced AI-powered workflow system for waterjet cutting optimization</p>
+    </div>
+
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 2rem; color: #1f2937;">
+            Choose Your Workflow
+        </h2>
+
+        <div class="workflow-cards">
+            <!-- AI-Enhanced Image Workflow -->
+            <div class="workflow-card" onclick="window.location.href='{{ url_for('ai_image.index') }}'">
+                <h3>🤖 AI-Enhanced Image to DXF</h3>
+                <p>Generate images from text prompts or upload existing images. Uses Ollama for local AI analysis and OpenAI for image generation with waterjet optimization.</p>
+                
+                <ul class="workflow-steps">
+                    <li>Generate image from text prompt or upload existing</li>
+                    <li>Ollama AI analysis for waterjet optimization</li>
+                    <li>Live interactive conversion with real-time feedback</li>
+                    <li>AI-guided simplification and recommendations</li>
+                    <li>Download optimized DXF for cutting</li>
+                </ul>
+
+                <a href="{{ url_for('ai_image.index') }}" class="btn-workflow">
+                    Start AI Image Workflow ->
+                </a>
+            </div>
+
+            <!-- DXF Upload Workflow -->
+            <div class="workflow-card" onclick="window.location.href='{{ url_for('dxf_workflow') }}'">
+                <h3>📐 DXF Upload Workflow</h3>
+                <p>Upload a DXF file, specify dimensions and material, then get real-time layer management, nesting optimization, and comprehensive analysis.</p>
+                
+                <ul class="workflow-steps">
+                    <li>Upload DXF file</li>
+                    <li>Enter dimensions & material specifications</li>
+                    <li>DXF resizing without content distortion</li>
+                    <li>Real-time layer management</li>
+                    <li>Advanced nesting optimization</li>
+                    <li>Toolpath analysis & cost estimation</li>
+                </ul>
+
+                <a href="{{ url_for('dxf_workflow') }}" class="btn-workflow">
+                    Start DXF Workflow ->
+                </a>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 3rem; padding: 2rem; background: #f8fafc; border-radius: 12px;">
+            <h3 style="color: #1f2937; margin-bottom: 1rem;">🎯 Key Features</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div>
+                    <strong>🤖 AI-Powered Analysis</strong><br>
+                    <small>Advanced AI models for manufacturing insights</small>
+                </div>
+                <div>
+                    <strong>📊 Real-time Processing</strong><br>
+                    <small>Live updates and real-time layer management</small>
+                </div>
+                <div>
+                    <strong>💰 Cost Optimization</strong><br>
+                    <small>Accurate cost estimation and material optimization</small>
+                </div>
+                <div>
+                    <strong>🔧 Advanced Toolpath</strong><br>
+                    <small>Optimized cutting parameters and path planning</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add smooth scrolling and animations
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click animation to workflow cards
+            const cards = document.querySelectorAll('.workflow-card');
+            cards.forEach(card => {
+                card.addEventListener('click', function() {
+                    this.style.transform = 'scale(0.98)';
+                    setTimeout(() => {
+                        this.style.transform = '';
+                    }, 150);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

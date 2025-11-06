@@ -1,0 +1,18 @@
+# Defaults you can change per job/machine
+units: mm
+tolerances:
+  snap_mm: 0.1
+  spline_approx_mm: 0.1
+  min_spacing_mm: 3.0
+  min_inner_radius_mm: 2.0
+  min_feature_thickness_mm: 6.0
+kerf_mm: 1.1
+cost:
+  inr_per_meter: 825
+feeds:
+  # very rough placeholders; tune per material/thickness
+  default_mm_per_min: 1200
+  pierce_ms: 500
+m_codes:
+  jet_on: M62
+  jet_off: M63

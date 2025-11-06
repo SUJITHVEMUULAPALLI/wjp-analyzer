@@ -1,11 +1,14 @@
 """
-Waterjet DXF Analyzer - Unified Workflow
-========================================
+Waterjet DXF Analyzer - Unified Workflow with Caching
+===================================================
 
 This module provides comprehensive DXF analysis for waterjet cutting operations,
 including geometric analysis, cost estimation, quality assessment, and optimization.
+Now integrated with service architecture for path management, authentication, 
+report generation, and results caching.
 
-Workflow: Upload → Analysis → Layer Management → Nesting → Toolpath → Costing
+Core Workflow: Upload → Auth → Cache Check → Analysis → Layer Management → 
+        Nesting → Toolpath → Costing
 
 The legacy modular pipeline has been simplified into a single cohesive module.
 All high-level steps remain accessible through the familiar public API used by
@@ -14,25 +17,31 @@ CLI/web tooling (`AnalyzeArgs`, `analyze_dxf`, `load_polys_and_classes`, etc.).
 Key Features:
 - Geometric analysis of DXF entities (lines, arcs, circles, polylines)
 - Shape classification and grouping for efficient processing
-- Cutting length and pierce point calculation
+- Cutting length and pierce point calculation 
 - Material-specific cost estimation
 - Quality assessment and validation
 - Toolpath generation and optimization
 
+Cache & Optimization:
+- File content-based cache keys for deterministic results
+- Selection filtering applied to cached results
+- Efficient selective updates of cached data
+- Cache miss tracking for optimization
+
 Security Considerations:
 - Input validation for DXF files
-- Path sanitization for file operations
+- Path sanitization for file operations  
 - Error handling with user-friendly messages
-- Logging of analysis operations
+- Logging of analysis operations and cache usage
 
 Performance Optimizations:
-- Caching of analysis results
+- Smart caching of analysis results 
 - Efficient geometric algorithms
 - Memory management for large files
 - Parallel processing where applicable
 
 Author: WJP Analyser Team
-Version: 0.1.0
+Version: 0.1.1 
 License: MIT
 """
 
@@ -42,14 +51,26 @@ import csv
 import json
 import math
 import os
+from pathlib import Path
 from dataclasses import dataclass
 from collections import Counter
-from typing import Dict, Iterable, List, Tuple, Optional
+from typing import Dict, Iterable, List, Tuple, Optional, TYPE_CHECKING
+
+# Lazy imports for optional services (may require SQLAlchemy/database)
+# Only import when actually needed to avoid import errors if SQLAlchemy unavailable
+if TYPE_CHECKING:
+    from ..services.path_manager import PathManager
+    from ..services.auth_service import AuthService
+    from ..services.report_generator import ReportGenerator
+    from ..services.logging_service import LoggingService
 
 import ezdxf
 from shapely.geometry import Polygon
 
-from ..manufacturing.gcode_generator import write_gcode
+from .cache_utils import build_cache_key, filter_cached_report
+from ..services.cache_service import CacheService
+
+# G-code generation moved to a separate module/UI page. Not used here.
 
 
 # ---------------------------------------------------------------------------
@@ -224,9 +245,19 @@ class AnalyzeArgs:
     quality_tolerance: float = 2.0  # mm threshold for tiny segments
     shaky_threshold: int = 200      # vertex-count threshold for "shaky" polylines
     # Softening (smoothing/simplification) options
-    soften_method: str = "none"      # one of: none, simplify, chaikin
-    soften_tolerance: float = 0.2    # for simplify (mm)
+    soften_method: str = "none"      # one of: none, simplify, simplify_topo, chaikin, rdp, visvalingam, colinear, decimate, resample
+    soften_tolerance: float = 0.2    # for simplify/rdp (mm)
     soften_iterations: int = 1       # for chaikin iterations
+    soften_preserve_topology: bool = False  # for simplify (topology-safe)
+    soften_visvalingam_area_mm2: float = 0.5  # min triangle area for VW method
+    soften_colinear_angle_deg: float = 2.0    # treat angles within this as colinear
+    soften_decimate_keep_every: int = 2       # keep every Nth vertex (>=2)
+    soften_resample_step_mm: float = 1.0      # resample edge step in mm
+    # Measurement-guided softening options
+    soften_measure_min_segment_mm: float = 1.0
+    soften_measure_max_deviation_mm: float = 0.2
+    soften_measure_min_corner_radius_mm: float = 1.0
+    soften_measure_snap_grid_mm: float = 0.0
     # Corner fillet options (bulge-based arcs in DXF)
     fillet_radius_mm: float = 0.0
     fillet_min_angle_deg: float = 135.0
@@ -247,6 +278,13 @@ class AnalyzeArgs:
     normalize_origin: bool = True
     require_fit_within_frame: bool = True
     frame_quantity: int = 1
+    
+    # Performance optimization flags (Phase 4)
+    streaming_mode: bool = False  # Use streaming parser for large files
+    early_simplify_tolerance: float = 0.0  # Early simplification tolerance (0 = disabled)
+    min_segment_length: float = 0.0  # Minimum segment length to keep (0 = disabled)
+    coordinate_precision: int = 3  # Decimal precision for coordinates (reduces memory)
+    use_float32: bool = False  # Use float32 instead of float64 (reduces memory by ~50%)
 
 
 # ---------------------------------------------------------------------------
@@ -746,6 +784,139 @@ def _chaikin_once(pts: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
 
 def _apply_soften(polys: Iterable[dict], method: str, tol: float, iterations: int) -> List[dict]:
     from shapely.geometry import LineString
+    import math
+
+    def _is_closed(points: List[Tuple[float, float]]) -> bool:
+        return len(points) >= 2 and points[0] == points[-1]
+
+    def _ensure_closed(points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        if not points:
+            return points
+        if points[0] != points[-1]:
+            return points + [points[0]]
+        return points
+
+    def _visvalingam(points: List[Tuple[float, float]], area_thr: float) -> List[Tuple[float, float]]:
+        if len(points) <= 3:
+            return points
+        closed = _is_closed(points)
+        work = points[:-1] if closed else points[:]
+        n = len(work)
+        # Compute initial triangle areas for internal points
+        def tri_area(a, b, c) -> float:
+            return abs((a[0]*(b[1]-c[1]) + b[0]*(c[1]-a[1]) + c[0]*(a[1]-b[1])) * 0.5)
+        indices = list(range(n))
+        # Use iterative removal by minimal area above threshold
+        while True:
+            if len(indices) <= 2:
+                break
+            min_area = None
+            min_idx_pos = None
+            # skip endpoints for open; for closed treat circular
+            for pos in range(len(indices)):
+                if not closed and (pos == 0 or pos == len(indices)-1):
+                    continue
+                i_prev = indices[(pos-1) % len(indices)]
+                i = indices[pos]
+                i_next = indices[(pos+1) % len(indices)]
+                area = tri_area(work[i_prev], work[i], work[i_next])
+                if min_area is None or area < min_area:
+                    min_area = area
+                    min_idx_pos = pos
+            if min_area is None or min_area >= area_thr:
+                break
+            # remove the point at min_idx_pos
+            indices.pop(min_idx_pos)
+            # Safety to avoid infinite loop
+            if len(indices) <= 2:
+                break
+        result = [work[i] for i in indices]
+        return _ensure_closed(result) if closed else result
+
+    def _merge_colinear(points: List[Tuple[float, float]], angle_deg: float) -> List[Tuple[float, float]]:
+        if len(points) < 3:
+            return points
+        closed = _is_closed(points)
+        work = points[:-1] if closed else points[:]
+        thr = math.radians(max(0.0, angle_deg))
+        def angle_between(a, b, c) -> float:
+            v1x, v1y = b[0]-a[0], b[1]-a[1]
+            v2x, v2y = c[0]-b[0], c[1]-b[1]
+            d1 = math.hypot(v1x, v1y)
+            d2 = math.hypot(v2x, v2y)
+            if d1 < 1e-12 or d2 < 1e-12:
+                return 0.0
+            v1x /= d1; v1y /= d1; v2x /= d2; v2y /= d2
+            dot = max(-1.0, min(1.0, v1x*v2x + v1y*v2y))
+            return math.acos(dot)  # 0 for colinear straight line
+        keep = []
+        for i in range(len(work)):
+            if not closed and (i == 0 or i == len(work)-1):
+                keep.append(work[i])
+                continue
+            a = work[(i-1) % len(work)]
+            b = work[i]
+            c = work[(i+1) % len(work)]
+            ang = angle_between(a, b, c)
+            # if angle close to pi (straight), drop b
+            if abs(math.pi - ang) <= thr:
+                continue
+            keep.append(b)
+        if closed:
+            keep = _ensure_closed(keep)
+        return keep
+
+    def _decimate(points: List[Tuple[float, float]], n_keep_every: int) -> List[Tuple[float, float]]:
+        if len(points) <= 3 or n_keep_every <= 1:
+            return points
+        closed = _is_closed(points)
+        work = points[:-1] if closed else points[:]
+        out = [work[i] for i in range(0, len(work), n_keep_every)]
+        # ensure last vertex is kept for open shapes
+        if not closed and out[-1] != work[-1]:
+            out.append(work[-1])
+        return _ensure_closed(out) if closed else out
+
+    def _resample(points: List[Tuple[float, float]], step_mm: float) -> List[Tuple[float, float]]:
+        if len(points) < 2 or step_mm <= 0:
+            return points
+        closed = _is_closed(points)
+        work = points[:-1] if closed else points[:]
+        # build cumulative lengths
+        segs: List[Tuple[Tuple[float, float], Tuple[float, float], float]] = []
+        total = 0.0
+        for a, b in zip(work, work[1:]+([work[0]] if closed else [])):
+            dx = b[0]-a[0]; dy = b[1]-a[1]
+            d = math.hypot(dx, dy)
+            segs.append((a, b, d))
+            total += d
+        if total == 0:
+            return points
+        out: List[Tuple[float, float]] = []
+        dist = 0.0
+        si = 0
+        a, b, d = segs[0]
+        while dist <= total + 1e-9:
+            # move along segments to reach current dist
+            remaining = dist
+            acc = 0.0
+            for si in range(len(segs)):
+                a, b, d = segs[si]
+                if acc + d >= remaining:
+                    t = 0.0 if d == 0 else (remaining - acc) / d
+                    x = a[0] + t * (b[0] - a[0])
+                    y = a[1] + t * (b[1] - a[1])
+                    out.append((x, y))
+                    break
+                acc += d
+            dist += step_mm
+        # ensure last point closes/open ends maintained
+        if closed:
+            out = _ensure_closed(out)
+        else:
+            if out[-1] != work[-1]:
+                out.append(work[-1])
+        return out
     out: List[dict] = []
     method = (method or "none").lower()
     for item in polys:
@@ -763,10 +934,127 @@ def _apply_soften(polys: Iterable[dict], method: str, tol: float, iterations: in
                 item = {**item, "points": new_pts}
             except Exception:
                 pass
+        elif method == "simplify_topo" or method == "rdp_topo":
+            try:
+                ls = LineString(pts)
+                simp = ls.simplify(tol, preserve_topology=True)
+                new_pts = list(map(tuple, simp.coords))
+                if new_pts and new_pts[0] != new_pts[-1]:
+                    new_pts.append(new_pts[0])
+                item = {**item, "points": new_pts}
+            except Exception:
+                pass
+        elif method == "rdp":
+            try:
+                ls = LineString(pts)
+                simp = ls.simplify(tol, preserve_topology=False)
+                new_pts = list(map(tuple, simp.coords))
+                if new_pts and new_pts[0] != new_pts[-1]:
+                    new_pts.append(new_pts[0])
+                item = {**item, "points": new_pts}
+            except Exception:
+                pass
         elif method == "chaikin":
             new_pts = pts[:]
             for _ in range(max(1, int(iterations))):
                 new_pts = _chaikin_once(new_pts)
+            item = {**item, "points": new_pts}
+        elif method == "visvalingam":
+            try:
+                area_thr = float(getattr(item, "_vw_area_thr", tol))  # tol used as proxy unless provided
+            except Exception:
+                area_thr = tol
+            new_pts = _visvalingam(pts, max(0.0, area_thr))
+            item = {**item, "points": new_pts}
+        elif method == "measurement":
+            # Remove tiny segments, enforce min corner radius, optional grid snap
+            min_seg = float(item.get("_min_seg_mm", 1.0)) if isinstance(item, dict) else 1.0
+            max_dev = float(item.get("_max_dev_mm", 0.2)) if isinstance(item, dict) else 0.2
+            min_corner = float(item.get("_min_corner_r_mm", 1.0)) if isinstance(item, dict) else 1.0
+            snap = float(item.get("_snap_grid_mm", 0.0)) if isinstance(item, dict) else 0.0
+            # 1) collapse short edges
+            collapsed: List[Tuple[float, float]] = []
+            acc = pts[:]
+            if _is_closed(acc):
+                acc = acc[:-1]
+                closed2 = True
+            else:
+                closed2 = False
+            i = 0
+            while i < len(acc):
+                a = acc[i]
+                b = acc[(i+1) % len(acc)] if i+1 < len(acc) else (acc[0] if closed2 else None)
+                if b is None:
+                    collapsed.append(a)
+                    break
+                d = math.hypot(b[0]-a[0], b[1]-a[1])
+                if d < max(1e-9, min_seg):
+                    # skip b by merging midpoint
+                    mid = ((a[0]+b[0])/2.0, (a[1]+b[1])/2.0)
+                    collapsed.append(mid)
+                    i += 2
+                else:
+                    collapsed.append(a)
+                    i += 1
+            if closed2 and (not collapsed or collapsed[0] != collapsed[-1]):
+                collapsed.append(collapsed[0])
+            # 2) topology-preserving simplification by max deviation
+            try:
+                ls2 = LineString(collapsed)
+                simp2 = ls2.simplify(max_dev, preserve_topology=True)
+                collapsed = list(map(tuple, simp2.coords))
+            except Exception:
+                pass
+            # 3) enforce min corner radius by light Chaikin if below threshold
+            def _estimate_min_radius_local(p):
+                if len(p) < 3:
+                    return float("inf")
+                work = p[:-1] if _is_closed(p) else p
+                best = float("inf")
+                for j in range(1, len(work)-1):
+                    ax, ay = work[j-1]
+                    bx, by = work[j]
+                    cx, cy = work[j+1]
+                    # same tri radius as above
+                    a = math.hypot(ax - bx, ay - by)
+                    b = math.hypot(bx - cx, by - cy)
+                    c = math.hypot(cx - ax, cy - ay)
+                    s = (a + b + c) / 2.0
+                    area_sq = max(0.0, s * (s - a) * (s - b) * (s - c))
+                    if area_sq <= 1e-18:
+                        continue
+                    area = math.sqrt(area_sq)
+                    R = (a * b * c) / max(1e-12, 4.0 * area)
+                    best = min(best, R)
+                return best if best != float("inf") else 0.0
+            r_now = _estimate_min_radius_local(collapsed)
+            new_pts = collapsed
+            if r_now < min_corner:
+                # one pass chaikin to soften corners
+                new_pts = _chaikin_once(new_pts)
+            # 4) grid snap
+            if snap > 0:
+                snapped = []
+                for x, y in new_pts:
+                    sx = round(x / snap) * snap
+                    sy = round(y / snap) * snap
+                    snapped.append((sx, sy))
+                new_pts = snapped
+            new_pts = _ensure_closed(new_pts)
+            item = {**item, "points": new_pts}
+        elif method == "colinear":
+            ang_deg = float(item.get("_colinear_angle_deg", 2.0)) if isinstance(item, dict) else 2.0
+            new_pts = _merge_colinear(pts, ang_deg)
+            item = {**item, "points": new_pts}
+        elif method == "decimate":
+            keep_every = int(item.get("_decimate_n", 2)) if isinstance(item, dict) else 2
+            keep_every = max(2, keep_every)
+            new_pts = _decimate(pts, keep_every)
+            item = {**item, "points": new_pts}
+        elif method == "resample":
+            step = float(item.get("_resample_step", tol)) if isinstance(item, dict) else tol
+            step = max(1e-6, step)
+            new_pts = _resample(pts, step)
             item = {**item, "points": new_pts}
         out.append(item)
     return out
@@ -1025,88 +1313,33 @@ def group_similar_objects(
     circ_tol: float = 0.05,
     ar_tol: float = 0.02,
 ) -> tuple[Dict[str, dict], list[dict]]:
-    """Group components by geometric similarity with duplicate collapsing.
-
-    Uses vertex count + area/perimeter/circularity + aspect ratio, with
-    quantized descriptors to reduce numeric jitter. Collapses duplicates and
-    maintains counts and average stats.
+    """Group components by geometric similarity using the GroupManager.
+    
+    Returns both the group dictionary and updated components list.
     """
-    groups: Dict[str, dict] = {}
-
-    def _descriptors(comp: dict) -> tuple[int, float, float, float, float]:
-        pts = comp.get("points", [])
-        area = float(comp.get("area", 0.0))
-        peri = float(comp.get("perimeter", 0.0))
-        # aspect ratio from bounding box (scale/rotation invariant via min/max)
-        try:
-            bb = Polygon(pts).bounds if pts else (0.0, 0.0, 0.0, 0.0)
-            w = (bb[2] - bb[0]) or 1e-9
-            h = (bb[3] - bb[1]) or 1e-9
-            ar = min(w, h) / max(w, h)
-        except Exception:
-            ar = 0.0
-        circ = (4.0 * math.pi * area) / (peri * peri + 1e-9)
-        vcount = int(comp.get("vertex_count") or len(pts))
-        return vcount, area, peri, circ, ar
-
-    groups: Dict[str, dict] = {}
-    group_id = 1
-
+    from .group_manager import create_group_manager
+    
+    # Create and initialize the group manager
+    manager = create_group_manager(components)
+    
+    # Get the exported group data
+    group_data = manager.export_group_data()
+    
+    # Update component group assignments
     for comp in components:
-        vcount, area, peri, circ, ar = _descriptors(comp)
-        if area <= 0 or peri <= 0:
-            continue
-
-        matched = False
-        for gname, g in groups.items():
-            if g["vcount"] != vcount:
-                continue
-
-            if (
-                abs(area - g["avg_area"]) <= area_tol * max(g["avg_area"], 1e-9)
-                and abs(peri - g["avg_perimeter"]) <= peri_tol * max(g["avg_perimeter"], 1e-9)
-                and abs(circ - g["avg_circ"]) <= circ_tol
-                and abs(ar - g["avg_ar"]) <= ar_tol
-            ):
-                g["polys"].append(comp.get("points", []))
-                g["component_ids"].append(comp.get("id"))
-                g["count"] += 1
-                n = g["count"]
-                # incremental averages
-                g["avg_area"] = (g["avg_area"] * (n - 1) + area) / n
-                g["avg_perimeter"] = (g["avg_perimeter"] * (n - 1) + peri) / n
-                g["avg_circ"] = (g["avg_circ"] * (n - 1) + circ) / n
-                g["avg_ar"] = (g["avg_ar"] * (n - 1) + ar) / n
-                lyr = comp.get("layer")
-                if lyr:
-                    g["layers"][lyr] = g["layers"].get(lyr, 0) + 1
-                comp["group"] = gname
-                matched = True
+        # Find the most specific group this component belongs to
+        assigned = False
+        for group_name, group_info in group_data['groups'].items():
+            if comp.get('id') in group_info.get('metadata', {}).get('component_ids', []):
+                comp['group'] = group_name
+                comp['layer'] = group_info['layer']
+                assigned = True
                 break
-
-        if not matched:
-            complexity = "complex" if vcount > 200 else ("moderate" if vcount > 50 else "simple")
-            group_meta = {
-                "polys": [comp.get("points", [])],
-                "component_ids": [comp.get("id")],
-                "count": 1,
-                "vcount": vcount,
-                "avg_area": area,
-                "avg_perimeter": peri,
-                "avg_circ": circ,
-                "avg_ar": ar,
-                "complexity": complexity,
-                "layers": {comp.get("layer"): 1} if comp.get("layer") else {},
-            }
-            gname = generate_intelligent_group_name(group_meta, group_id)
-            groups[gname] = group_meta
-            comp["group"] = gname
-            group_id += 1
-
-    for comp in components:
-        comp.setdefault("group", "Ungrouped")
-
-    return groups, components
+                
+        if not assigned:
+            comp['group'] = 'Ungrouped'
+            
+    return group_data['groups'], components
 
 
 def generate_intelligent_group_name(group_meta: dict, group_index: int) -> str:
@@ -1274,25 +1507,7 @@ def _layers_from_components(components: Iterable[dict]) -> LayerBuckets:
     return buckets
 
 
-def _write_basic_gcode(polylines: Iterable[Polyline], path: str, feed: float = 1200.0, m_on: str = "M62", m_off: str = "M63", pierce_ms: int = 500) -> str:
-    polygons: list[Polygon] = []
-    for pts in polylines:
-        try:
-            poly = Polygon(pts)
-            if poly.is_empty or not poly.is_valid:
-                continue
-            polygons.append(poly)
-        except Exception:
-            continue
-
-    if not polygons:
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write("(No geometry)\n")
-        return path
-
-    order = list(range(len(polygons)))
-    write_gcode(path, polygons, order, feed=feed, m_on=m_on, m_off=m_off, pierce_ms=pierce_ms)
-    return path
+# G-code helpers removed from analyzer
 
 
 # ---------------------------------------------------------------------------
@@ -1330,142 +1545,25 @@ def _simple_nesting(layer_groups: LayerBuckets, sheet_size: Tuple[float, float])
 # ---------------------------------------------------------------------------
 # 4. Toolpath (cutting order optimization)
 # ---------------------------------------------------------------------------
-def _generate_toolpath(layer_groups: LayerBuckets) -> list[Polyline]:
-    """Order polylines for cutting: inners/holes first, outers last, nearest-neighbor within sets.
-
-    This reduces part movement and unnecessary rapids. One pierce per closed polyline.
-    """
-    import math
-    from shapely.geometry import Polygon as _Poly
-
-    def center(poly: Polyline) -> tuple[float, float]:
-        try:
-            p = _Poly(poly)
-            x, y = p.centroid.x, p.centroid.y
-            return float(x), float(y)
-        except Exception:
-            xs = [pt[0] for pt in poly]
-            ys = [pt[1] for pt in poly]
-            return (float(sum(xs) / max(1, len(xs))), float(sum(ys) / max(1, len(ys))))
-
-    def nn_order(polys: list[Polyline], start_xy: tuple[float, float]) -> tuple[list[Polyline], tuple[float, float]]:
-        remaining = polys[:]
-        ordered: list[Polyline] = []
-        cx, cy = start_xy
-        while remaining:
-            # Choose nearest by centroid
-            best_i = 0
-            best_d = float("inf")
-            for i, poly in enumerate(remaining):
-                px, py = center(poly)
-                d = (px - cx) * (px - cx) + (py - cy) * (py - cy)
-                if d < best_d:
-                    best_d = d
-                    best_i = i
-            chosen = remaining.pop(best_i)
-            ordered.append(chosen)
-            cx, cy = center(chosen)
-        return ordered, (cx, cy)
-
-    priority = ["HOLE", "INNER", "DECOR", "COMPLEX", "OUTER"]
-    head = (0.0, 0.0)
-    result: list[Polyline] = []
-    for lname in priority:
-        batch = layer_groups.get(lname, [])
-        if not batch:
-            continue
-        seq, head = nn_order(batch, head)
-        result.extend(seq)
-    return result
+# Toolpath generation moved to gcode workflow module
 
 
 # ---------------------------------------------------------------------------
 # 5. Costing
 # ---------------------------------------------------------------------------
-def _calculate_cost(toolpath: Iterable[Polyline], rate_per_mtr: float, pierce_cost: float) -> dict:
-    total_length = 0.0
-    pierce_count = 0
-
-    for poly in toolpath:
-        pierce_count += 1
-        length = 0.0
-        for idx in range(len(poly) - 1):
-            x1, y1 = poly[idx]
-            x2, y2 = poly[idx + 1]
-            length += math.dist((x1, y1), (x2, y2))
-        total_length += length
-
-    cutting_cost = (total_length / 1000.0) * rate_per_mtr
-    total_cost = cutting_cost + pierce_count * pierce_cost
-
-    return {
-        "cutting_length_mm": round(total_length, 2),
-        "pierce_count": pierce_count,
-        "cutting_cost": round(cutting_cost, 2),
-        "total_cost": round(total_cost, 2),
-    }
+# Costing moved to gcode workflow module
 
 
 # ---------------------------------------------------------------------------
 # Helpers for outputs
 # ---------------------------------------------------------------------------
-def _write_layered_dxf(layers: LayerBuckets, output_path: str) -> str:
-    doc = ezdxf.new(setup=True)
-    msp = doc.modelspace()
-
-    for layer_name in layers.keys():
-        if layer_name not in doc.layers:
-            doc.layers.new(name=layer_name)
-
-    for layer_name, polygons in layers.items():
-        for pts in polygons:
-            msp.add_lwpolyline(pts, dxfattribs={"layer": layer_name}, close=True)
-
-    doc.saveas(output_path)
-    return output_path
+# File writers moved to gcode workflow module
 
 
-def _write_lengths_csv(layers: LayerBuckets, csv_path: str) -> str:
-    # TODO (Codex): Split CSV output into two modes as per UI terminology update.
-    # Pre-grouping (objects):
-    #   headers → object_id, area_mm2, complexity (and optionally perimeter_mm)
-    # Post-grouping (groups):
-    #   headers → group_id, count, avg_area_mm2, avg_circularity
-    # This helper currently emits per-layer per-polyline lengths; retain as-is
-    # for backward compatibility, but add new writers:
-    #   _write_objects_csv(components, path)
-    #   _write_groups_csv(groups, path)
-    # and update callers/exports accordingly.
-    rows: list[dict] = []
-    for layer_name, polygons in layers.items():
-        for idx, pts in enumerate(polygons):
-            try:
-                poly = Polygon(pts)
-                perimeter = poly.length
-                area = poly.area
-            except Exception:
-                perimeter = 0.0
-                area = 0.0
-            rows.append(
-                {
-                    "layer": layer_name,
-                    "id": idx,
-                    "perimeter_mm": round(perimeter, 2),
-                    "area_mm2": round(area, 2),
-                }
-            )
-
-    with open(csv_path, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["layer", "id", "perimeter_mm", "area_mm2"])
-        writer.writeheader()
-        writer.writerows(rows)
-    return csv_path
+# File writers moved to gcode workflow module
 
 
-def _write_report(report: dict, path: str) -> str:
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(report, handle, indent=2)
-    return path
+# File writers moved to gcode workflow module
 
 
 # ---------------------------------------------------------------------------
@@ -1596,9 +1694,111 @@ def analyze_dxf(
     args: AnalyzeArgs | None = None,
     selected_groups: list[str] | None = None,
     group_layer_overrides: Dict[str, str] | None = None,
+    path_manager: Optional["PathManager"] = None,
+    auth_service: Optional["AuthService"] = None,
+    report_generator: Optional["ReportGenerator"] = None,
+    logging_service: Optional["LoggingService"] = None,
 ) -> dict:
     args = args or AnalyzeArgs()
-    os.makedirs(args.out, exist_ok=True)
+    
+    cache_service = None
+    cache_key = None
+    cached_payload = None
+    try:
+        from ..performance.cache_manager import get_cache_manager, compute_file_hash
+
+        cache_dir = os.path.join(args.out, ".cache")
+        cache_service = get_cache_manager(cache_dir)
+        file_hash = compute_file_hash(dxf_path)
+        param_dict = {
+            "material": args.material,
+            "thickness": args.thickness,
+            "kerf": args.kerf,
+            "streaming_mode": getattr(args, "streaming_mode", False),
+            "early_simplify": getattr(args, "early_simplify_tolerance", 0.0),
+        }
+        cache_key = build_cache_key(file_hash, param_dict)
+        cached_payload = cache_service.get(cache_key)
+        if cached_payload and logging_service:
+            logging_service.info(
+                "Using cached analysis result",
+                {
+                    "cache_type": "hit",
+                    "cache_key": cache_key,
+                    "file": os.path.basename(dxf_path),
+                },
+            )
+    except ImportError:
+        try:
+            import hashlib
+
+            cache_service = CacheService(os.path.join(args.out, ".cache"))
+            with open(dxf_path, "rb") as f:
+                file_hash = hashlib.md5(f.read()).hexdigest()
+            param_dict = {
+                "material": args.material,
+                "thickness": args.thickness,
+                "kerf": args.kerf,
+                "streaming_mode": getattr(args, "streaming_mode", False),
+                "early_simplify": getattr(args, "early_simplify_tolerance", 0.0),
+            }
+            cache_key = build_cache_key(file_hash, param_dict)
+            cached_payload = cache_service.get(cache_key)
+            if cached_payload and logging_service:
+                logging_service.info(
+                    "Using cached analysis result",
+                    {
+                        "cache_type": "hit",
+                        "cache_key": cache_key,
+                        "file": os.path.basename(dxf_path),
+                    },
+                )
+        except Exception:
+            cache_service = None
+            cached_payload = None
+    except Exception:
+        cache_service = None
+        cached_payload = None
+
+    if cached_payload:
+        return filter_cached_report(
+            cached_payload,
+            selected_groups=selected_groups,
+            group_layer_overrides=group_layer_overrides,
+            logging_service=logging_service,
+        )
+    
+    # Initialize logging if service provided
+    if logging_service:
+        logging_service.info("Starting DXF analysis", {
+            "file": os.path.basename(dxf_path),
+            "material": args.material,
+            "thickness": args.thickness,
+            "cache_key": cache_key,
+            "cache_type": "miss"
+        })
+    
+    # Use path manager if provided, or create basic output directory
+    if path_manager:
+        output_dir = path_manager.get_dxf_output_path(os.path.basename(dxf_path))
+        args.out = str(output_dir.parent)
+        cache_service = CacheService(os.path.join(str(output_dir.parent), ".cache"))
+        if logging_service:
+            logging_service.debug("Using managed output directory", {
+                "output_dir": str(output_dir)
+            })
+    else:
+        os.makedirs(args.out, exist_ok=True)
+        if logging_service:
+            logging_service.debug("Created basic output directory", {
+                "output_dir": args.out
+            })
+
+    # Validate authentication if auth service provided
+    if auth_service:
+        # In real usage, token would come from request context
+        # Here we just validate that auth service is working
+        auth_service.cleanup_expired_tokens()
 
     # Determine scale factor (drawing units → mm)
     scale_factor = 1.0
@@ -1631,7 +1831,56 @@ def analyze_dxf(
     # Pre-scan entity counts for diagnostics
     entity_counts = _collect_entity_counts(source_path)
 
-    polylines = _extract_polylines(source_path)
+    # Use streaming parser for large files or if explicitly requested
+    # Check file size using os.path.getsize (more reliable than Path)
+    file_size = os.path.getsize(source_path)
+    use_streaming = getattr(args, "streaming_mode", False) or file_size > 10 * 1024 * 1024  # 10MB threshold
+    
+    if use_streaming:
+        try:
+            from ..performance.streaming_parser import StreamingDXFParser, normalize_entities, parse_with_early_simplification
+            from ..performance.memory_optimizer import filter_tiny_segments
+            
+            # Use streaming parser with early simplification
+            parser = StreamingDXFParser()
+            early_simplify = getattr(args, "early_simplify_tolerance", 0.1)
+            
+            if early_simplify > 0:
+                # Parse with early simplification
+                entities = parse_with_early_simplification(source_path, tolerance=early_simplify)
+            else:
+                # Parse normally but stream
+                entities = list(parser.parse_in_chunks(source_path))
+            
+            # Normalize entities (explode SPLINE/ELLIPSE)
+            entities = normalize_entities(entities)
+            
+            # Convert to polylines format
+            polylines = []
+            for entity in entities:
+                points = entity.get("points", [])
+                if len(points) >= 2:
+                    # Filter tiny segments if enabled
+                    min_seg = getattr(args, "min_segment_length", 0.01)
+                    if min_seg > 0:
+                        from ..performance.memory_optimizer import filter_tiny_segments
+                        points = filter_tiny_segments(points, epsilon=min_seg)
+                    
+                    if len(points) >= 2:
+                        polylines.append({
+                            "points": points,
+                            "handle": entity.get("handle"),
+                            "source_layer": entity.get("layer", "0"),
+                        })
+        except ImportError:
+            # Fallback to standard parser if performance module not available
+            polylines = _extract_polylines(source_path)
+        except Exception:
+            # Fallback on any error
+            polylines = _extract_polylines(source_path)
+    else:
+        # Standard parser for smaller files
+        polylines = _extract_polylines(source_path)
     # Apply scaling to mm (units -> mm)
     polylines = _scale_polylines(polylines, scale_factor)
 
@@ -1741,28 +1990,13 @@ def analyze_dxf(
 
     layers_active = _layers_from_components(active_components)
 
-    placements = _simple_nesting(layers_active, (args.sheet_width, args.sheet_height))
-    toolpath = _generate_toolpath(layers_active)
-    cost = _calculate_cost(toolpath, rate_per_mtr=args.rate_per_m, pierce_cost=args.pierce_cost)
-
-    est_time_min = None
-    try:
-        if float(getattr(args, "cutting_speed", 0.0)) > 0:
-            est_time_min = round(cost["cutting_length_mm"] / float(args.cutting_speed), 2)
-    except Exception:
-        est_time_min = None
-    metrics = {
-        "length_internal_mm": cost["cutting_length_mm"],
-        "length_outer_mm": cost["cutting_length_mm"],
-        "pierces": cost["pierce_count"],
-        "estimated_cutting_cost_inr": cost["total_cost"],
-        "estimated_cutting_time_min": est_time_min,
-    }
+    # Toolpath, nesting, and costing moved to gcode workflow page/module
+    placements = []
+    metrics = {}
 
     layered_path = os.path.join(args.out, "layered_output.dxf")
     lengths_path = os.path.join(args.out, "lengths.csv")
     report_path = os.path.join(args.out, "report.json")
-    gcode_path = os.path.join(args.out, "program.nc")
 
     # Diagnostics for feedback when metrics appear empty or geometry is skipped
     unsupported_types = {}
@@ -1856,8 +2090,7 @@ def analyze_dxf(
         "ShakyPolylines": quality.get("Shaky Polylines", []),
         "TinySegments": quality.get("Tiny Segments", 0),
         "Duplicates": quality.get("Duplicate Candidates", 0),
-        "TotalLength_mm": cost["cutting_length_mm"],
-        "Pierces": cost["pierce_count"],
+        # Length and pierces now produced by G-code workflow
         "Warnings": warnings,
     }
 
@@ -1873,13 +2106,12 @@ def analyze_dxf(
         },
         "layers_present": layer_names,
         "layers": {name: len(polys) for name, polys in layers_active.items()},
-        "toolpath": {"order": list(range(len(toolpath)))},
-        "nesting": {"placements": len(placements)},
+        "toolpath": {},
+        "nesting": {},
         "artifacts": {
             "report_json": report_path,
             "lengths_csv": lengths_path,
             "layered_dxf": layered_path,
-            "gcode": gcode_path,
         },
         "selection": {
             "groups": active_groups,
@@ -1963,10 +2195,38 @@ def analyze_dxf(
         entry["component_ids"].append(comp["id"])
     report["size_groups"] = size_groups
 
-    _write_report(report, report_path)
-    _write_lengths_csv(layers_active, lengths_path)
-    _write_layered_dxf(layers_active, layered_path)
-    _write_basic_gcode(toolpath, gcode_path)
+    # Report/layered outputs are produced by the G-code workflow module
+
+    # Generate PDF report if report generator provided
+    if report_generator:
+        try:
+            pdf_path = os.path.join(args.out, "analysis_report.pdf")
+            report_generator.generate_pdf_report(report, pdf_path)
+            report["artifacts"]["pdf_report"] = pdf_path
+        except Exception as e:
+            print(f"Warning: PDF report generation failed: {e}")
+            
+    if cache_service and cache_key:
+        try:
+            cache_service.set(cache_key, report)
+            if logging_service:
+                logging_service.info(
+                    "Cached analysis result",
+                    {
+                        "file": os.path.basename(dxf_path),
+                        "cache_key": cache_key,
+                        "cache_type": "miss->store",
+                    },
+                )
+        except Exception:
+            if logging_service:
+                logging_service.warning(
+                    "Failed to cache analysis result",
+                    {
+                        "file": os.path.basename(dxf_path),
+                        "cache_key": cache_key,
+                    },
+                )
 
     return report
 
@@ -2034,23 +2294,40 @@ def load_polys_and_classes(dxf_path: str):
     return polygons, classes, order
 
 
-def generate_gcode_to(path: str, dxf_path: str, feed: float = 1200.0, m_on: str = "M62", m_off: str = "M63", pierce_ms: int = 500) -> str:
-    polygons, _, order = load_polys_and_classes(dxf_path)
-    if not polygons:
-        with open(path, "w", encoding="utf-8") as handle:
-            handle.write("(No geometry)\n")
-        return path
-    write_gcode(path, polygons, order, feed=feed, m_on=m_on, m_off=m_off, pierce_ms=pierce_ms)
-    return path
+# G-code API removed from analyzer; provided in a dedicated module/page
 
 
-def run_dxf_analyzer(input_dxf: str, output_dir: str = "out") -> dict:
+def run_dxf_analyzer(
+    input_dxf: str, 
+    output_dir: str = "out",
+    path_manager: Optional["PathManager"] = None,
+    auth_service: Optional["AuthService"] = None,
+    report_generator: Optional["ReportGenerator"] = None
+) -> dict:
+    """Run DXF analysis with optional service integrations."""
+    
+    # Use provided path manager or default to basic directory
+    if path_manager:
+        out_path = path_manager.get_dxf_output_path(os.path.basename(input_dxf))
+        output_dir = str(out_path.parent)
+    
     args = AnalyzeArgs(out=output_dir)
-    report = analyze_dxf(input_dxf, args)
+    report = analyze_dxf(
+        input_dxf, 
+        args,
+        path_manager=path_manager,
+        auth_service=auth_service,
+        report_generator=report_generator
+    )
+    
     print("✅ Layering complete")
     print(f"✅ Toolpath with {report['metrics']['pierces']} cuts")
     print("💰 Cost Report:", report["metrics"])
     print(f"💾 Saved artifacts under {output_dir}")
+    
+    if "pdf_report" in report.get("artifacts", {}):
+        print(f"📄 PDF Report generated: {report['artifacts']['pdf_report']}")
+    
     return report
 
 

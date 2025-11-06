@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
+import shutil
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -31,21 +32,30 @@ class PreprocessOptions:
     invert: bool = False  # invert binary prior to PBM for Potrace black foreground
 
 
-def ensure_potrace() -> Optional[str]:
-    # Try to find potrace executable in PATH
+def ensure_potrace(potrace_exe: Optional[str] = None) -> Optional[str]:
+    """Resolve potrace executable path.
+
+    Precedence:
+    1) Explicit potrace_exe argument if provided and exists
+    2) PATH lookup
+    3) On Windows, WSL 'potrace' if available
+    """
+    if potrace_exe and os.path.exists(potrace_exe):
+        return potrace_exe
+
     exe = "potrace.exe" if os.name == "nt" else "potrace"
     path = shutil.which(exe)
-    
+
     # If not found on Windows, try WSL
     if os.name == "nt" and path is None:
         try:
-            result = subprocess.run(["wsl", "which", "potrace"], 
-                                  capture_output=True, text=True, timeout=5)
+            result = subprocess.run(["wsl", "which", "potrace"],
+                                    capture_output=True, text=True, timeout=5)
             if result.returncode == 0 and result.stdout.strip():
                 return "wsl"  # Return special marker for WSL
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
-    
+
     return path
 
 
@@ -206,6 +216,7 @@ def preprocess_and_vectorize(
     potrace_turdsize: int = 2,
     potrace_alphamax: float = 1.0,
     potrace_opttolerance: float = 0.2,
+    potrace_exe: Optional[str] = None,
 ) -> Tuple[Optional[Path], Path, Optional[Path]]:
     opts = PreprocessOptions(
         threshold_type=threshold_type,
@@ -222,7 +233,14 @@ def preprocess_and_vectorize(
     pbm_path, preview_png = preprocess_image(image_path, out_dir, opts)
     want_svg = output_route != "potrace_dxf"
     want_dxf = True
-    svg_path, dxf_path = potrace_vectorize(
+    # If an explicit potrace exe is provided, ensure_potrace will be called earlier
+    # by temporarily injecting into PATH for this call when needed.
+    if potrace_exe and os.path.exists(potrace_exe):
+        # Prepend directory to PATH for subprocess calls
+        prev_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = os.path.dirname(potrace_exe) + os.pathsep + prev_path
+    try:
+        svg_path, dxf_path = potrace_vectorize(
         pbm_path,
         out_dir,
         want_svg=want_svg,
@@ -230,7 +248,10 @@ def preprocess_and_vectorize(
         turdsize=int(potrace_turdsize),
         alphamax=float(potrace_alphamax),
         opttolerance=float(potrace_opttolerance),
-    )
+        )
+    finally:
+        if potrace_exe and os.path.exists(potrace_exe):
+            os.environ["PATH"] = prev_path
 
     # SVG -> DXF route with optional simplification
     if output_route == "svg_then_dxf":
@@ -251,6 +272,154 @@ def preprocess_and_vectorize(
         scale_dxf_to_target(dxf_path, target_size_mm)
 
     return dxf_path, preview_png, svg_path
+
+
+def _collect_dxf_polylines(doc) -> list[list[tuple[float, float]]]:
+    """Extract polyline-like sequences from DXF document modelspace."""
+    msp = doc.modelspace()
+    polys: list[list[tuple[float, float]]] = []
+    # LWPOLYLINE
+    for e in msp.query("LWPOLYLINE"):
+        try:
+            pts = [(v[0], v[1]) for v in e.get_points("xy")]
+            if len(pts) >= 2:
+                polys.append(pts)
+        except Exception:
+            continue
+    # LINE
+    for e in msp.query("LINE"):
+        try:
+            pts = [
+                (float(e.dxf.start.x), float(e.dxf.start.y)),
+                (float(e.dxf.end.x), float(e.dxf.end.y)),
+            ]
+            polys.append(pts)
+        except Exception:
+            continue
+    # ARC -> sample to polyline
+    for e in msp.query("ARC"):
+        try:
+            import math
+
+            cx, cy = float(e.dxf.center.x), float(e.dxf.center.y)
+            r = float(e.dxf.radius)
+            a1 = math.radians(float(e.dxf.start_angle))
+            a2 = math.radians(float(e.dxf.end_angle))
+            if a2 < a1:
+                a2 += 2 * math.pi
+            steps = 64
+            ts = np.linspace(a1, a2, steps)
+            pts = [(cx + r * math.cos(t), cy + r * math.sin(t)) for t in ts]
+            if len(pts) >= 2:
+                polys.append(pts)
+        except Exception:
+            continue
+    return polys
+
+
+def simplify_dxf_inplace(dxf_path: Path, tolerance_mm: float) -> bool:
+    """Simplify DXF polylines in-place using Shapely if available, else RDP fallback.
+
+    Returns True if successful, False otherwise.
+    """
+    if tolerance_mm <= 0:
+        return False
+    if ezdxf is None:
+        return False
+    try:
+        doc = ezdxf.readfile(str(dxf_path))
+    except Exception:
+        return False
+
+    msp = doc.modelspace()
+    polys = _collect_dxf_polylines(doc)
+
+    used_shapely = False
+    simplified: list[list[tuple[float, float]]] = []
+    try:
+        from shapely.geometry import LineString  # type: ignore
+
+        used_shapely = True
+        for pts in polys:
+            ls = LineString(pts)
+            ls2 = ls.simplify(tolerance_mm, preserve_topology=True)
+            simplified.append(list(ls2.coords))
+    except Exception:
+        used_shapely = False
+
+    if not used_shapely:
+        # Fallback to RDP per polyline
+        for pts in polys:
+            simplified.append(_rdp(pts, tolerance_mm))
+
+    # Clear and rewrite as LWPOLYLINEs
+    try:
+        # Remove existing entities that we simplified
+        for e in list(msp.query("LWPOLYLINE LINE ARC")):
+            try:
+                msp.delete_entity(e)
+            except Exception:
+                pass
+        for pts in simplified:
+            if len(pts) < 2:
+                continue
+            closed = False
+            if len(pts) >= 3:
+                (x1, y1) = pts[0]
+                (x2, y2) = pts[-1]
+                if abs(x1 - x2) < 1e-6 and abs(y1 - y2) < 1e-6:
+                    closed = True
+            msp.add_lwpolyline(pts, format="xy", close=closed)
+        doc.saveas(str(dxf_path))
+        return True
+    except Exception:
+        return False
+
+
+def compute_dxf_complexity(dxf_path: Path) -> tuple[int, int, float]:
+    """Return (num_entities, total_nodes, total_length_mm) for a DXF file."""
+    if ezdxf is None:
+        return (0, 0, 0.0)
+    try:
+        doc = ezdxf.readfile(str(dxf_path))
+        msp = doc.modelspace()
+    except Exception:
+        return (0, 0, 0.0)
+
+    import math
+    ent_count = 0
+    node_count = 0
+    total_len = 0.0
+
+    for e in msp:
+        try:
+            if e.dxftype() == "LWPOLYLINE":
+                pts = [(v[0], v[1]) for v in e.get_points("xy")]
+                ent_count += 1
+                node_count += len(pts)
+                for i in range(1, len(pts)):
+                    x1, y1 = pts[i - 1]
+                    x2, y2 = pts[i]
+                    total_len += math.hypot(x2 - x1, y2 - y1)
+            elif e.dxftype() == "LINE":
+                ent_count += 1
+                node_count += 2
+                x1, y1 = float(e.dxf.start.x), float(e.dxf.start.y)
+                x2, y2 = float(e.dxf.end.x), float(e.dxf.end.y)
+                total_len += math.hypot(x2 - x1, y2 - y1)
+            elif e.dxftype() == "ARC":
+                ent_count += 1
+                node_count += 64  # sampled equivalent
+                r = float(e.dxf.radius)
+                a1 = math.radians(float(e.dxf.start_angle))
+                a2 = math.radians(float(e.dxf.end_angle))
+                if a2 < a1:
+                    a2 += 2 * math.pi
+                total_len += abs(a2 - a1) * r
+        except Exception:
+            continue
+
+    return (ent_count, node_count, total_len)
 
 
 def _rdp(points: list[tuple[float, float]], epsilon: float) -> list[tuple[float, float]]:

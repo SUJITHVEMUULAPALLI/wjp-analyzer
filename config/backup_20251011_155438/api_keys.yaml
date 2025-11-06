@@ -1,0 +1,18 @@
+# API Keys Configuration
+# IMPORTANT: Keep this file secure and never commit real API keys to version control
+# Use environment variables or secure key management in production
+
+openai:
+  # Set OPENAI_API_KEY environment variable or replace with your actual key
+  api_key: "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"
+  
+# Usage:
+# 1. Replace 'your-api-key-here' with your actual key
+# 2. The CLI will automatically load this file
+# 3. Keep this file secure and don't commit it to version control
+
+# To get your OpenAI API key:
+# 1. Go to https://platform.openai.com/api-keys
+# 2. Sign in to your OpenAI account
+# 3. Click "Create new secret key"
+# 4. Copy the key and paste it above

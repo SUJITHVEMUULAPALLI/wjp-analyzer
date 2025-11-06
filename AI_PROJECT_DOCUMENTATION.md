@@ -137,7 +137,7 @@ WJP ANALYSER/
 ## Technical Specifications
 
 ### Dependencies
-- **Core**: Python 3.8+, NumPy, OpenCV, PIL
+- **Core**: Python 3.10+, NumPy, OpenCV, PIL
 - **DXF Processing**: ezdxf, shapely
 - **Web Interface**: Streamlit, matplotlib
 - **AI Integration**: openai, requests

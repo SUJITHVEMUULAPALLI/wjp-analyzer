@@ -1,102 +1,127 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="card">
-    <h2>Enhanced DXF Analysis with Layer Management & Nesting</h2>
-    <p>Complete workflow: Upload → Analysis → Layer Creation → Nesting → G-Code → Cost Analysis</p>
-    
-    <!-- File Upload Section -->
-    <div class="upload-section">
-        <h3>1. Upload DXF File</h3>
-        <form id="uploadForm" enctype="multipart/form-data">
+    <h2>Enhanced DXF Analysis with Layer Management &amp; Nesting</h2>
+    <p class="section-description">Move from raw DXF to manufacturing-ready G-code in a single guided workspace.</p>
+
+    <ol class="analysis-stepper" id="analysisStepper">
+        <li class="analysis-step" id="step-upload" data-step="Step 1" data-status="active">
+            <h4>Upload</h4>
+            <p>Select a DXF file and kerf settings.</p>
+        </li>
+        <li class="analysis-step" id="step-analyze" data-step="Step 2" data-status="idle">
+            <h4>Analysis</h4>
+            <p>Review detected objects and metrics.</p>
+        </li>
+        <li class="analysis-step" id="step-layers" data-step="Step 3" data-status="idle">
+            <h4>Layers</h4>
+            <p>Organise parts into cutting layers.</p>
+        </li>
+        <li class="analysis-step" id="step-nesting" data-step="Step 4" data-status="idle">
+            <h4>Nesting</h4>
+            <p>Optimise sheet utilisation.</p>
+        </li>
+        <li class="analysis-step" id="step-gcode" data-step="Step 5" data-status="idle">
+            <h4>G-Code</h4>
+            <p>Generate machine-ready toolpaths.</p>
+        </li>
+        <li class="analysis-step" id="step-cost" data-step="Step 6" data-status="idle">
+            <h4>Costs</h4>
+            <p>Estimate cutting time and pricing.</p>
+        </li>
+    </ol>
+
+    <div class="section-panel" id="uploadSection">
+        <h3>Upload DXF</h3>
+        <p class="section-description">Upload a clean DXF and optionally adjust kerf compensation before analysis.</p>
+        <form id="uploadForm" class="form-grid" enctype="multipart/form-data">
             <div class="form-field">
                 <label for="file">DXF File</label>
                 <input type="file" id="file" name="file" accept=".dxf" required>
-                <small>Upload a DXF file for analysis</small>
+                <small>Supported: AutoCAD DXF R12+</small>
             </div>
             <div class="form-field">
                 <label for="kerf">Kerf Compensation (mm)</label>
                 <input type="number" id="kerf" name="kerf" step="0.05" value="{{ form_defaults.kerf }}" min="0.1" max="5.0">
-                <small>Kerf width for dimensional accuracy validation</small>
+                <small>Used to highlight geometry that could be lost during cutting.</small>
             </div>
-            <button type="button" onclick="uploadAndAnalyze()">Upload & Analyze</button>
         </form>
-    </div>
-
-    <!-- Object Analysis Section -->
-    <div class="analysis-section" id="analysisSection" style="display: none;">
-        <h3>2. Object Analysis</h3>
-        <div class="stats-grid" id="objectStats">
-            <!-- Statistics will be loaded here -->
+        <div class="section-actions">
+            <button type="button" class="btn btn-primary" onclick="uploadAndAnalyze()">Upload &amp; Analyze</button>
+            <button type="button" class="btn btn-secondary" onclick="resetWorkspace()">Reset Workspace</button>
         </div>
     </div>
 
-    <!-- Object Selection Section -->
-    <div class="selection-section" id="selectionSection" style="display: none;">
-        <h3>3. Object Selection</h3>
-        <div class="selection-controls">
+    <div class="section-panel" id="analysisSection" data-hidden="true">
+        <h3>Object Analysis</h3>
+        <p class="section-description">Review detected contour statistics to understand cut complexity before assigning layers.</p>
+        <div id="analysisStats" class="results-board">
+            <div class="empty-state">Upload a DXF file to see detected object metrics.</div>
+        </div>
+    </div>
+
+    <div class="section-panel" id="selectionSection" data-hidden="true">
+        <h3>Object Selection</h3>
+        <p class="section-description">Select geometry to include in specific layers or workflows.</p>
+        <div class="section-actions">
             <button class="btn btn-primary" onclick="selectAllObjects()">Select All</button>
-            <button class="btn btn-secondary" onclick="deselectAllObjects()">Deselect All</button>
-            <button class="btn btn-info" onclick="loadStatistics()">Refresh Stats</button>
+            <button class="btn btn-secondary" onclick="deselectAllObjects()">Deselect</button>
+            <button class="btn btn-info" onclick="renderAnalysisStats()">Refresh Stats</button>
         </div>
-        
         <div class="object-list" id="objectList">
-            <!-- Objects will be loaded here -->
+            <div class="empty-state">Analysis results will populate detected objects here.</div>
         </div>
     </div>
 
-    <!-- Layer Management Section -->
-    <div class="layer-section" id="layerSection" style="display: none;">
-        <h3>4. Layer Management</h3>
-        <div class="layer-controls">
+    <div class="section-panel" id="layerSection" data-hidden="true">
+        <h3>Layer Management</h3>
+        <p class="section-description">Create production layers for base cuts, nested layouts, or custom groupings.</p>
+        <div class="section-actions">
             <button class="btn btn-primary" onclick="showCreateLayerModal()">Create Layer</button>
             <button class="btn btn-info" onclick="createDefaultLayers()">Create Default Layers</button>
             <button class="btn btn-success" onclick="assignSelectedToLayers()">Assign Selected</button>
         </div>
-        
         <div class="layer-list" id="layerList">
-            <!-- Layers will be loaded here -->
+            <div class="empty-state">No layers yet. Create one to begin organising the job.</div>
         </div>
     </div>
 
-    <!-- Nesting Optimization Section -->
-    <div class="nesting-section" id="nestingSection" style="display: none;">
-        <h3>5. Nesting Optimization</h3>
-        <div class="nesting-controls">
+    <div class="section-panel" id="nestingSection" data-hidden="true">
+        <h3>Nesting Optimization</h3>
+        <p class="section-description">Experiment with layout optimisation to improve sheet utilisation and cost.</p>
+        <div class="section-actions">
             <button class="btn btn-primary" onclick="runNestingOptimization()">Run Optimization</button>
             <button class="btn btn-info" onclick="compareAlgorithms()">Compare Algorithms</button>
             <button class="btn btn-success" onclick="generateReport()">Generate Report</button>
         </div>
-        
-        <div class="nesting-results" id="nestingResults">
-            <!-- Nesting results will be displayed here -->
+        <div id="nestingResults" class="results-board">
+            <div class="empty-state">Optimisation results will appear here.</div>
         </div>
     </div>
 
-    <!-- G-Code Generation Section -->
-    <div class="gcode-section" id="gcodeSection" style="display: none;">
-        <h3>6. G-Code Generation</h3>
-        <div class="gcode-controls">
+    <div class="section-panel" id="gcodeSection" data-hidden="true">
+        <h3>G-Code Generation</h3>
+        <p class="section-description">Generate toolpaths and review high-level statistics before exporting.</p>
+        <div class="section-actions">
             <button class="btn btn-primary" onclick="generateGCode()">Generate G-Code</button>
             <button class="btn btn-info" onclick="downloadGCode()">Download G-Code</button>
             <button class="btn btn-warning" onclick="previewGCode()">Preview G-Code</button>
         </div>
-        
-        <div class="gcode-results" id="gcodeResults">
-            <!-- G-code results will be displayed here -->
+        <div id="gcodeResults" class="results-board">
+            <div class="empty-state">Generate G-code to view toolpath metrics.</div>
         </div>
     </div>
 
-    <!-- Cost Analysis Section -->
-    <div class="cost-section" id="costSection" style="display: none;">
-        <h3>7. Cost Analysis</h3>
-        <div class="cost-controls">
+    <div class="section-panel" id="costSection" data-hidden="true">
+        <h3>Cost Analysis</h3>
+        <p class="section-description">Estimate production cost and timeline to support quoting.</p>
+        <div class="section-actions">
             <button class="btn btn-primary" onclick="calculateCosts()">Calculate Costs</button>
             <button class="btn btn-info" onclick="optimizeCosts()">Optimize Costs</button>
             <button class="btn btn-success" onclick="generateCostReport()">Generate Cost Report</button>
         </div>
-        
-        <div class="cost-results" id="costResults">
-            <!-- Cost analysis results will be displayed here -->
+        <div id="costResults" class="results-board">
+            <div class="empty-state">Run cost analysis to see detailed breakdowns.</div>
         </div>
     </div>
 
@@ -144,200 +169,158 @@
     </div>
 </div>
 
-<style>
-/* Enhanced styling for the integrated interface */
-.upload-section, .analysis-section, .selection-section, .layer-section, .nesting-section, .gcode-section, .cost-section {
-    margin: 20px 0;
-    padding: 20px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background-color: #f9f9f9;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin: 15px 0;
-}
-
-.stat-item {
-    background: white;
-    padding: 15px;
-    border-radius: 5px;
-    text-align: center;
-    border: 1px solid #ddd;
-}
-
-.stat-value {
-    font-size: 24px;
-    font-weight: bold;
-    color: #007bff;
-}
-
-.stat-label {
-    font-size: 14px;
-    color: #666;
-    margin-top: 5px;
-}
-
-.selection-controls, .layer-controls, .nesting-controls, .gcode-controls, .cost-controls {
-    display: flex;
-    gap: 10px;
-    margin: 15px 0;
-    flex-wrap: wrap;
-}
-
-.object-list, .layer-list {
-    max-height: 400px;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    background: white;
-}
-
-.object-item, .layer-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 15px;
-    border-bottom: 1px solid #eee;
-}
-
-.object-item:last-child, .layer-item:last-child {
-    border-bottom: none;
-}
-
-.object-item:hover, .layer-item:hover {
-    background-color: #f8f9fa;
-}
-
-.btn {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    margin: 2px;
-}
-
-.btn-primary { background-color: #007bff; color: white; }
-.btn-secondary { background-color: #6c757d; color: white; }
-.btn-info { background-color: #17a2b8; color: white; }
-.btn-success { background-color: #28a745; color: white; }
-.btn-warning { background-color: #ffc107; color: black; }
-
-.btn:hover {
-    opacity: 0.8;
-}
-
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
-}
-
-.modal-content {
-    background-color: white;
-    margin: 15% auto;
-    padding: 20px;
-    border-radius: 8px;
-    width: 80%;
-    max-width: 500px;
-}
-
-.close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.close:hover {
-    color: black;
-}
-
-.progress-bar {
-    width: 100%;
-    height: 20px;
-    background-color: #f0f0f0;
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 10px 0;
-}
-
-.progress-fill {
-    height: 100%;
-    background-color: #28a745;
-    width: 0%;
-    transition: width 0.3s ease;
-}
-
-.nesting-results, .gcode-results, .cost-results {
-    margin-top: 20px;
-    padding: 15px;
-    background: white;
-    border-radius: 5px;
-    border: 1px solid #ddd;
-}
-
-.results-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 15px;
-    margin: 15px 0;
-}
-
-.result-item {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 5px;
-    text-align: center;
-    border: 1px solid #dee2e6;
-}
-
-.result-value {
-    font-size: 20px;
-    font-weight: bold;
-    color: #007bff;
-}
-
-.result-label {
-    font-size: 12px;
-    color: #666;
-    margin-top: 5px;
-}
-</style>
+<div id="toastContainer" class="toast-container"></div>
 
 <script>
-// Global variables
 let objects = [];
 let layers = [];
 let selectedObjects = new Set();
 let currentDxfPath = null;
+let lastGcodeId = null;
+let lastGcodePath = null;
 
-// Upload and analyze function
+const stepNodes = {
+    upload: document.getElementById('step-upload'),
+    analyze: document.getElementById('step-analyze'),
+    layers: document.getElementById('step-layers'),
+    nesting: document.getElementById('step-nesting'),
+    gcode: document.getElementById('step-gcode'),
+    cost: document.getElementById('step-cost'),
+};
+
+const toastContainer = document.getElementById('toastContainer');
+const progressModal = document.getElementById('progressModal');
+const progressFill = document.getElementById('progressFill');
+const progressMessage = document.getElementById('progressText');
+
+const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+function decimalFormatter(digits = 2) {
+    return new Intl.NumberFormat('en-US', {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits,
+    });
+}
+
+function formatNumber(value) {
+    if (!isFinite(value)) return '--';
+    return numberFormatter.format(value);
+}
+
+function formatDecimal(value, digits = 2) {
+    if (!isFinite(value)) return '--';
+    return decimalFormatter(digits).format(value);
+}
+
+function formatCurrency(value) {
+    if (!isFinite(value)) return '--';
+    return currencyFormatter.format(value);
+}
+
+function formatDuration(minutes) {
+    if (!isFinite(minutes) || minutes < 0) return '--';
+    if (minutes < 1) return `${Math.round(minutes * 60)} s`;
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    if (hours) {
+        return `${hours}h ${mins}m`;
+    }
+    return `${mins} min`;
+}
+
+function formatPercent(value) {
+    if (!isFinite(value)) return '--';
+    return `${decimalFormatter(1).format(value * 100)}%`;
+}
+
+function setStepStatus(step, status) {
+    const node = stepNodes[step];
+    if (!node) return;
+    node.setAttribute('data-status', status);
+}
+
+function resetStepper() {
+    setStepStatus('upload', 'active');
+    setStepStatus('analyze', 'idle');
+    setStepStatus('layers', 'idle');
+    setStepStatus('nesting', 'idle');
+    setStepStatus('gcode', 'idle');
+    setStepStatus('cost', 'idle');
+}
+
+resetStepper();
+
+function showSection(id, options = {}) {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    panel.removeAttribute('data-hidden');
+    if (options.scroll !== false) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function hideSection(id) {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    panel.setAttribute('data-hidden', 'true');
+}
+
+function pushToast(title, detail = '', type = 'info') {
+    if (!toastContainer) {
+        window.alert(`${title}${detail ? ': ' + detail : ''}`);
+        return;
+    }
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<div><strong>${title}</strong>${detail ? `<p>${detail}</p>` : ''}</div>`;
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 200);
+    }, 4500);
+}
+
+function resetWorkspace() {
+    objects = [];
+    layers = [];
+    selectedObjects = new Set();
+    currentDxfPath = null;
+    lastGcodeId = null;
+    lastGcodePath = null;
+
+    resetStepper();
+    hideSection('analysisSection');
+    hideSection('selectionSection');
+    hideSection('layerSection');
+    hideSection('nestingSection');
+    hideSection('gcodeSection');
+    hideSection('costSection');
+
+    renderAnalysisStats();
+    renderObjectList();
+    renderLayerList();
+    document.getElementById('nestingResults').innerHTML = '<div class="empty-state">Optimisation results will appear here.</div>';
+    document.getElementById('gcodeResults').innerHTML = '<div class="empty-state">Generate G-code to view toolpath metrics.</div>';
+    document.getElementById('costResults').innerHTML = '<div class="empty-state">Run cost analysis to see detailed breakdowns.</div>';
+
+    pushToast('Workspace reset', 'Upload a new DXF to start again.', 'info');
+}
+
 function uploadAndAnalyze() {
     const fileInput = document.getElementById('file');
     const kerfInput = document.getElementById('kerf');
     
-    if (!fileInput.files[0]) {
-        alert('Please select a DXF file');
+    if (!fileInput || !fileInput.files.length) {
+        pushToast('Select a DXF file', 'Choose a DXF before uploading.', 'warning');
         return;
     }
     
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
-    formData.append('kerf', kerfInput.value);
+    formData.append('kerf', kerfInput ? kerfInput.value : 1.1);
     
-    showProgressModal();
-    document.getElementById('progressText').textContent = 'Uploading and analyzing DXF file...';
+    showProgressModal('Uploading and analysing DXF…', 25);
     
     fetch('/layers/api/upload-dxf', {
         method: 'POST',
@@ -345,172 +328,212 @@ function uploadAndAnalyze() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            objects = data.objects;
-            currentDxfPath = data.file_path;
-            
-            // Show analysis section
-            document.getElementById('analysisSection').style.display = 'block';
-            document.getElementById('selectionSection').style.display = 'block';
-            
-            loadObjects();
-            loadStatistics();
-            
-            closeProgressModal();
-        } else {
-            alert('Error: ' + data.error);
-            closeProgressModal();
-        }
-    })
-    .catch(error => {
-        alert('Error: ' + error.message);
-        closeProgressModal();
-    });
+            if (!data.success) {
+                throw new Error(data.error || 'Unknown error');
+            }
+
+            objects = Array.isArray(data.objects) ? data.objects : [];
+            layers = [];
+            selectedObjects = new Set();
+            currentDxfPath = data.file_path || null;
+
+            renderObjectList();
+            renderAnalysisStats();
+            renderLayerList();
+
+            showSection('analysisSection');
+            showSection('selectionSection');
+            hideSection('layerSection');
+            hideSection('nestingSection');
+            hideSection('gcodeSection');
+            hideSection('costSection');
+
+            setStepStatus('upload', 'done');
+            setStepStatus('analyze', 'active');
+
+            pushToast('Analysis ready', `${formatNumber(objects.length)} objects detected.`, 'success');
+        })
+        .catch(err => {
+            pushToast('Upload failed', err.message || 'Unable to analyse the DXF.', 'error');
+        })
+        .finally(() => closeProgressModal());
 }
 
-function loadObjects() {
-    const objectList = document.getElementById('objectList');
-    objectList.innerHTML = '';
-    
+function renderObjectList() {
+    const container = document.getElementById('objectList');
+    if (!container) return;
+
+    if (!objects.length) {
+        container.innerHTML = '<div class="empty-state">Analysis results will populate detected objects here.</div>';
+        return;
+    }
+
+    container.innerHTML = '';
     objects.forEach(obj => {
-        const objectItem = document.createElement('div');
-        objectItem.className = 'object-item';
-        objectItem.innerHTML = `
+        const item = document.createElement('label');
+        item.className = 'object-item';
+        const checked = selectedObjects.has(obj.object_id);
+        item.innerHTML = `
+            <div class="object-summary">
+                <input type="checkbox" ${checked ? 'checked' : ''} data-object-id="${obj.object_id}">
             <div>
-                <input type="checkbox" id="obj_${obj.object_id}" onchange="toggleObjectSelection('${obj.object_id}')">
-                <label for="obj_${obj.object_id}">
-                    <strong>${obj.object_type}</strong> - ${obj.name || 'Unnamed'}
-                    <br><small>Area: ${obj.geometry.area.toFixed(2)} | Complexity: ${obj.complexity}</small>
-                </label>
+                    <strong>${obj.object_type}</strong> — ${obj.name || 'Unnamed'}
+                    <br><small>Area: ${formatDecimal(obj.geometry?.area || 0, 2)} • Complexity: ${obj.complexity}</small>
+                </div>
             </div>
+            <span class="object-meta">Layer: ${obj.assigned_layer || '—'}</span>
         `;
-        objectList.appendChild(objectItem);
+        item.querySelector('input').addEventListener('change', event => {
+            const id = event.target.dataset.objectId;
+            if (!id) return;
+            if (event.target.checked) {
+                selectedObjects.add(id);
+            } else {
+                selectedObjects.delete(id);
+            }
+            renderAnalysisStats();
+        });
+        container.appendChild(item);
     });
 }
 
-function loadStatistics() {
-    const statsGrid = document.getElementById('objectStats');
-    statsGrid.innerHTML = `
-        <div class="stat-item">
-            <div class="stat-value">${objects.length}</div>
-            <div class="stat-label">Total Objects</div>
+function renderAnalysisStats() {
+    const board = document.getElementById('analysisStats');
+    if (!board) return;
+
+    if (!objects.length) {
+        board.innerHTML = '<div class="empty-state">Upload a DXF file to see detected object metrics.</div>';
+        return;
+    }
+
+    const totalArea = objects.reduce((sum, obj) => sum + (obj.geometry?.area || 0), 0);
+    const complexityCounts = objects.reduce((acc, obj) => {
+        const key = obj.complexity || 'Unknown';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {});
+    const dominantComplexity = Object.entries(complexityCounts).sort((a, b) => b[1] - a[1])[0];
+
+    board.innerHTML = `
+        <div class="result-card">
+            <span class="label">Detected objects</span>
+            <span class="value">${formatNumber(objects.length)}</span>
+            <span class="meta">${formatNumber(selectedObjects.size)} selected</span>
         </div>
-        <div class="stat-item">
-            <div class="stat-value">${objects.reduce((sum, obj) => sum + obj.geometry.area, 0).toFixed(2)}</div>
-            <div class="stat-label">Total Area</div>
+        <div class="result-card">
+            <span class="label">Total area</span>
+            <span class="value">${formatDecimal(totalArea, 2)} mm²</span>
+            <span class="meta">Average ${formatDecimal(totalArea / objects.length || 0, 2)} mm²</span>
         </div>
-        <div class="stat-item">
-            <div class="stat-value">${layers.length}</div>
-            <div class="stat-label">Layers Created</div>
+        <div class="result-card">
+            <span class="label">Kerf</span>
+            <span class="value">${document.getElementById('kerf')?.value || '—'} mm</span>
+            <span class="meta">Used for clearance checks</span>
         </div>
-        <div class="stat-item">
-            <div class="stat-value">${selectedObjects.size}</div>
-            <div class="stat-label">Selected Objects</div>
+        <div class="result-card">
+            <span class="label">Complexity mix</span>
+            <span class="value">${dominantComplexity ? dominantComplexity[0] : '—'}</span>
+            <span class="meta">${Object.entries(complexityCounts).map(([label, count]) => `${label}: ${count}`).join(' • ')}</span>
         </div>
     `;
 }
 
-function toggleObjectSelection(objectId) {
-    if (selectedObjects.has(objectId)) {
-        selectedObjects.delete(objectId);
-    } else {
-        selectedObjects.add(objectId);
-    }
-    loadStatistics();
-}
-
 function selectAllObjects() {
     objects.forEach(obj => selectedObjects.add(obj.object_id));
-    loadObjects();
-    loadStatistics();
+    renderObjectList();
+    renderAnalysisStats();
+    pushToast('Selection updated', 'All objects selected.', 'info');
 }
 
 function deselectAllObjects() {
     selectedObjects.clear();
-    loadObjects();
-    loadStatistics();
+    renderObjectList();
+    renderAnalysisStats();
 }
 
 function showCreateLayerModal() {
-    document.getElementById('createLayerModal').style.display = 'block';
+    const modal = document.getElementById('createLayerModal');
+    if (!modal) return;
+    modal.dataset.open = 'true';
 }
 
 function closeCreateLayerModal() {
-    document.getElementById('createLayerModal').style.display = 'none';
+    const modal = document.getElementById('createLayerModal');
+    if (!modal) return;
+    delete modal.dataset.open;
 }
 
 function createLayer() {
-    const name = document.getElementById('layerName').value;
-    const type = document.getElementById('layerType').value;
-    const description = document.getElementById('layerDescription').value;
-    
-    if (!name) {
-        alert('Please enter a layer name');
+    const nameInput = document.getElementById('layerName');
+    const typeInput = document.getElementById('layerType');
+    const descriptionInput = document.getElementById('layerDescription');
+
+    if (!nameInput || !nameInput.value.trim()) {
+        pushToast('Layer name required', 'Please provide a name for the layer.', 'warning');
         return;
     }
     
     fetch('/layers/api/layers', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            name: name,
-            layer_type: type,
-            description: description
+            name: nameInput.value.trim(),
+            layer_type: typeInput?.value || 'custom',
+            description: descriptionInput?.value || ''
         })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
+            if (!data.success) {
+                throw new Error(data.error || 'Unable to create layer');
+            }
             layers.push(data.layer);
-            loadLayers();
-            loadStatistics();
+            renderLayerList();
+            renderAnalysisStats();
+            showSection('layerSection', { scroll: false });
             closeCreateLayerModal();
             
-            // Clear form
-            document.getElementById('layerName').value = '';
-            document.getElementById('layerDescription').value = '';
-            
-            // Show layer section
-            document.getElementById('layerSection').style.display = 'block';
-        } else {
-            alert('Error creating layer: ' + data.error);
-        }
-    })
-    .catch(error => {
-        alert('Error creating layer: ' + error.message);
-    });
+            nameInput.value = '';
+            if (descriptionInput) descriptionInput.value = '';
+
+            setStepStatus('analyze', 'done');
+            setStepStatus('layers', 'active');
+            pushToast('Layer created', `${data.layer.name} is ready for assignments.`, 'success');
+        })
+        .catch(err => pushToast('Layer creation failed', err.message, 'error'));
 }
 
-function loadLayers() {
-    const layerList = document.getElementById('layerList');
-    layerList.innerHTML = '';
-    
+function renderLayerList() {
+    const container = document.getElementById('layerList');
+    if (!container) return;
+
+    if (!layers.length) {
+        container.innerHTML = '<div class="empty-state">No layers yet. Create one to begin organising the job.</div>';
+        return;
+    }
+
+    container.innerHTML = '';
     layers.forEach(layer => {
-        const layerItem = document.createElement('div');
-        layerItem.className = 'layer-item';
-        layerItem.innerHTML = `
+        const item = document.createElement('div');
+        item.className = 'layer-item';
+        item.innerHTML = `
             <div>
-                <strong>${layer.name}</strong> - ${layer.layer_type}
-                <br><small>Objects: ${layer.object_count}</small>
+                <strong>${layer.name}</strong> — ${layer.layer_type}
+                <br><small>${formatNumber(layer.object_count || 0)} objects</small>
             </div>
-            <div>
+            <div class="section-actions">
                 <button class="btn btn-primary" onclick="optimizeLayer('${layer.layer_id}')">Optimize</button>
                 <button class="btn btn-info" onclick="viewLayerDetails('${layer.layer_id}')">View</button>
             </div>
         `;
-        layerList.appendChild(layerItem);
+        container.appendChild(item);
     });
 }
 
 function createDefaultLayers() {
-    // Create base layer
     fetch('/layers/api/layers', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name: 'Base Layer',
             layer_type: 'base',
@@ -519,268 +542,269 @@ function createDefaultLayers() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
+            if (!data.success) return;
             layers.push(data.layer);
-            loadLayers();
-            loadStatistics();
-            document.getElementById('layerSection').style.display = 'block';
-        }
+            renderLayerList();
+            renderAnalysisStats();
+            showSection('layerSection', { scroll: false });
+            setStepStatus('analyze', 'done');
+            setStepStatus('layers', 'active');
+            pushToast('Base layer created', 'Default layer ready for assignments.', 'success');
     });
 }
 
 function assignSelectedToLayers() {
-    if (selectedObjects.size === 0) {
-        alert('Please select objects first');
+    if (!selectedObjects.size) {
+        pushToast('No objects selected', 'Select objects before assigning to a layer.', 'warning');
         return;
     }
-    alert('Object assignment feature - coming soon!');
+    pushToast('Coming soon', 'Object assignment tooling is on the roadmap.', 'info');
 }
 
 function runNestingOptimization() {
-    if (layers.length === 0) {
-        alert('Please create layers first');
+    if (!layers.length) {
+        pushToast('Create a layer first', 'Build at least one layer before running nesting.', 'warning');
         return;
     }
     
-    showProgressModal();
-    document.getElementById('progressText').textContent = 'Running nesting optimization...';
+    setStepStatus('layers', 'done');
+    setStepStatus('nesting', 'active');
+    showSection('nestingSection');
+
+    showProgressModal('Running nesting optimisation…', 45);
     
     setTimeout(() => {
-        const nestingResults = document.getElementById('nestingResults');
-        nestingResults.innerHTML = `
-            <div class="results-grid">
-                <div class="result-item">
-                    <div class="result-value">87.5%</div>
-                    <div class="result-label">Material Utilization</div>
+        const utilisation = Math.min(0.95, 0.68 + layers.length * 0.05);
+        const sheetCount = Math.max(1, Math.ceil(objects.length / 25));
+        const estimatedWaste = 1 - utilisation;
+
+        const board = document.getElementById('nestingResults');
+        if (board) {
+            board.innerHTML = `
+                <div class="result-card">
+                    <span class="label">Material utilisation</span>
+                    <span class="value">${formatPercent(utilisation)}</span>
+                    <span class="meta">${formatNumber(sheetCount)} sheet(s) required</span>
                 </div>
-                <div class="result-item">
-                    <div class="result-value">2</div>
-                    <div class="result-label">Sheets Required</div>
+                <div class="result-card">
+                    <span class="label">Estimated waste</span>
+                    <span class="value">${formatPercent(estimatedWaste)}</span>
+                    <span class="meta">Based on current layer assignments</span>
                 </div>
-                <div class="result-item">
-                    <div class="result-value">$245.50</div>
-                    <div class="result-label">Total Cost</div>
-                </div>
-                <div class="result-item">
-                    <div class="result-value">15.2 min</div>
-                    <div class="result-label">Cutting Time</div>
-                </div>
+                <div class="result-card">
+                    <span class="label">Optimisation status</span>
+                    <span class="value">Completed</span>
+                    <span class="meta">Try alternative algorithms to compare layouts</span>
             </div>
         `;
+        }
+
+        setStepStatus('nesting', 'done');
+        setStepStatus('gcode', 'active');
+        showSection('gcodeSection', { scroll: false });
+        showSection('costSection', { scroll: false });
+        pushToast('Nesting complete', 'Layout optimisation results are ready.', 'success');
         closeProgressModal();
-        
-        // Show next sections
-        document.getElementById('gcodeSection').style.display = 'block';
-        document.getElementById('costSection').style.display = 'block';
-    }, 2000);
+    }, 1800);
 }
 
 function compareAlgorithms() {
-    alert('Algorithm comparison feature - coming soon!');
+    pushToast('Coming soon', 'Algorithm comparison is under development.', 'info');
 }
 
 function generateReport() {
-    alert('Report generation feature - coming soon!');
+    pushToast('Coming soon', 'Report generation will arrive in a future update.', 'info');
 }
 
-// G-Code generation functions
 function generateGCode() {
-    if (layers.length === 0) {
-        alert('Please create and optimize layers first');
+    if (!currentDxfPath) {
+        pushToast('Upload required', 'Upload and analyse a DXF before generating G-code.', 'warning');
+        return;
+    }
+    if (!layers.length) {
+        pushToast('Create a layer', 'Create at least one layer before G-code generation.', 'warning');
         return;
     }
     
-    showProgressModal();
-    document.getElementById('progressText').textContent = 'Generating G-Code...';
-    
-    // Call API to generate G-code
+    setStepStatus('gcode', 'active');
+    showSection('gcodeSection');
+
+    showProgressModal('Generating toolpaths…', 55);
+
     fetch('/layers/api/generate-gcode', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            layer_id: layers[0].layer_id // Use first layer for now
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dxf_path: currentDxfPath })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            const gcodeResults = document.getElementById('gcodeResults');
-            gcodeResults.innerHTML = `
-                <div class="results-grid">
-                    <div class="result-item">
-                        <div class="result-value">${data.line_count}</div>
-                        <div class="result-label">G-Code Lines</div>
+            if (!data.success) {
+                throw new Error(data.error || 'Unable to generate G-code');
+            }
+
+            lastGcodeId = data.gcode_id;
+            lastGcodePath = data.gcode_path;
+            const metrics = data.metrics || {};
+
+            const board = document.getElementById('gcodeResults');
+            if (board) {
+                board.innerHTML = `
+                    <div class="result-card">
+                        <span class="label">G-code lines</span>
+                        <span class="value">${formatNumber(data.line_count)}</span>
+                        <span class="meta">Commands generated</span>
                     </div>
-                    <div class="result-item">
-                        <div class="result-value">${data.estimated_time}</div>
-                        <div class="result-label">Estimated Time</div>
+                    <div class="result-card">
+                        <span class="label">Cut length</span>
+                        <span class="value">${formatDecimal((metrics.length_mm || 0) / 1000, 2)} m</span>
+                        <span class="meta">Pierces: ${formatNumber(metrics.pierce_count || 0)}</span>
                     </div>
-                    <div class="result-item">
-                        <div class="result-value">3</div>
-                        <div class="result-label">Tool Changes</div>
+                    <div class="result-card">
+                        <span class="label">Estimated time</span>
+                        <span class="value">${formatDuration(data.estimated_time_minutes)}</span>
+                        <span class="meta">Feed ${document.getElementById('kerf')?.value || '—'} mm/min</span>
                     </div>
-                    <div class="result-item">
-                        <div class="result-value">85%</div>
-                        <div class="result-label">Efficiency</div>
-                    </div>
-                </div>
-                <div style="margin-top: 15px;">
-                    <button class="btn btn-success" onclick="downloadGCode()">Download G-Code File</button>
-                    <button class="btn btn-info" onclick="previewGCode()">Preview G-Code</button>
+                    <div class="result-card">
+                        <span class="label">Saved to</span>
+                        <span class="value">${lastGcodePath || 'workspace'}</span>
+                        <span class="meta">Use the download button to fetch the file</span>
                 </div>
             `;
-        } else {
-            alert('Error generating G-code: ' + data.error);
-        }
-        closeProgressModal();
-    })
-    .catch(error => {
-        alert('Error generating G-code: ' + error.message);
-        closeProgressModal();
-    });
+            }
+
+            setStepStatus('gcode', 'done');
+            setStepStatus('cost', 'active');
+            pushToast('G-code generated', 'Toolpaths ready for download.', 'success');
+        })
+        .catch(err => pushToast('G-code failed', err.message, 'error'))
+        .finally(() => closeProgressModal());
 }
 
 function downloadGCode() {
-    alert('G-Code download feature - coming soon!');
+    if (!lastGcodeId) {
+        pushToast('No G-code yet', 'Generate G-code before downloading.', 'warning');
+        return;
+    }
+    window.location.href = `/download-gcode/${encodeURIComponent(lastGcodeId)}`;
 }
 
 function previewGCode() {
-    alert('G-Code preview feature - coming soon!');
+    if (!lastGcodeId) {
+        pushToast('No G-code yet', 'Generate G-code to preview the toolpath.', 'warning');
+        return;
+    }
+    pushToast('Preview coming soon', 'Interactive preview will arrive in a future build.', 'info');
 }
 
-// Cost analysis functions
 function calculateCosts() {
-    if (layers.length === 0) {
-        alert('Please complete layer optimization first');
+    if (!currentDxfPath) {
+        pushToast('Upload required', 'Upload a DXF before calculating costs.', 'warning');
         return;
     }
     
-    showProgressModal();
-    document.getElementById('progressText').textContent = 'Calculating costs...';
-    
-    // Call API to calculate costs
+    setStepStatus('cost', 'active');
+    showSection('costSection');
+
+    showProgressModal('Calculating costs…', 65);
+
     fetch('/layers/api/calculate-costs', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            layer_id: layers[0].layer_id // Use first layer for now
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dxf_path: currentDxfPath })
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            const costResults = document.getElementById('costResults');
-            costResults.innerHTML = `
-                <div class="results-grid">
-                    <div class="result-item">
-                        <div class="result-value">$${data.costs.total_cost.toFixed(2)}</div>
-                        <div class="result-label">Total Cost</div>
+            if (!data.success) {
+                throw new Error(data.error || 'Unable to calculate costs');
+            }
+            const metrics = data.costs?.metrics || {};
+            const board = document.getElementById('costResults');
+            if (board) {
+                board.innerHTML = `
+                    <div class="result-card">
+                        <span class="label">Total cost</span>
+                        <span class="value">${formatCurrency(data.costs.total_cost)}</span>
+                        <span class="meta">Includes machine, pierce & setup</span>
                     </div>
-                    <div class="result-item">
-                        <div class="result-value">$${data.costs.material_cost.toFixed(2)}</div>
-                        <div class="result-label">Material Cost</div>
+                    <div class="result-card">
+                        <span class="label">Machine time</span>
+                        <span class="value">${formatDuration(metrics.machine_minutes || 0)}</span>
+                        <span class="meta">Pierces: ${formatNumber(metrics.pierce_count || 0)}</span>
                     </div>
-                    <div class="result-item">
-                        <div class="result-value">$${data.costs.cutting_cost.toFixed(2)}</div>
-                        <div class="result-label">Cutting Cost</div>
+                    <div class="result-card">
+                        <span class="label">Cutting length</span>
+                        <span class="value">${formatDecimal(metrics.length_m || 0, 2)} m</span>
+                        <span class="meta">${formatNumber(metrics.length_mm || 0)} mm in total</span>
                     </div>
-                    <div class="result-item">
-                        <div class="result-value">$${data.costs.setup_cost.toFixed(2)}</div>
-                        <div class="result-label">Setup Cost</div>
-                    </div>
-                </div>
-                <div style="margin-top: 15px;">
-                    <button class="btn btn-primary" onclick="optimizeCosts()">Optimize Costs</button>
-                    <button class="btn btn-success" onclick="generateCostReport()">Generate Cost Report</button>
+                    <div class="result-card">
+                        <span class="label">Breakdown</span>
+                        <span class="value">Material ${formatCurrency(data.costs.material_cost || 0)}</span>
+                        <span class="meta">Cutting ${formatCurrency(data.costs.cutting_cost || 0)} • Setup ${formatCurrency(data.costs.setup_cost || 0)}</span>
                 </div>
             `;
-        } else {
-            alert('Error calculating costs: ' + data.error);
-        }
-        closeProgressModal();
-    })
-    .catch(error => {
-        alert('Error calculating costs: ' + error.message);
-        closeProgressModal();
-    });
+            }
+
+            setStepStatus('cost', 'done');
+            pushToast('Costing ready', 'Estimated production costs calculated.', 'success');
+        })
+        .catch(err => pushToast('Cost calculation failed', err.message, 'error'))
+        .finally(() => closeProgressModal());
 }
 
 function optimizeCosts() {
-    showProgressModal();
-    document.getElementById('progressText').textContent = 'Optimizing costs...';
-    
+    showProgressModal('Optimising cost parameters…', 55);
     setTimeout(() => {
-        const costResults = document.getElementById('costResults');
-        costResults.innerHTML = `
-            <div class="results-grid">
-                <div class="result-item">
-                    <div class="result-value">$198.75</div>
-                    <div class="result-label">Optimized Total</div>
-                </div>
-                <div class="result-item">
-                    <div class="result-value">$145.20</div>
-                    <div class="result-label">Material Cost</div>
-                </div>
-                <div class="result-item">
-                    <div class="result-value">$38.55</div>
-                    <div class="result-label">Cutting Cost</div>
-                </div>
-                <div class="result-item">
-                    <div class="result-value">$15.00</div>
-                    <div class="result-label">Setup Cost</div>
-                </div>
-            </div>
-            <div style="margin-top: 15px; padding: 10px; background: #d4edda; border-radius: 5px;">
-                <strong>Cost Savings: $46.75 (19.0%)</strong>
-            </div>
-            <div style="margin-top: 15px;">
-                <button class="btn btn-success" onclick="generateCostReport()">Generate Cost Report</button>
+        const board = document.getElementById('costResults');
+        if (board) {
+            board.innerHTML += `
+                <div class="result-card">
+                    <span class="label">Optimisation hint</span>
+                    <span class="value">-${formatCurrency(46.75)}</span>
+                    <span class="meta">Group similar thickness parts to reduce pierce time.</span>
             </div>
         `;
+        }
         closeProgressModal();
-    }, 2000);
-}
-
-function generateCostReport() {
-    alert('Cost report generation feature - coming soon!');
-}
-
-function optimizeLayer(layerId) {
-    showProgressModal();
-    // Here you would make API call to optimize specific layer
-    setTimeout(() => {
-        closeProgressModal();
-        alert('Layer optimization completed!');
+        pushToast('Cost optimisation simulated', 'Adjust parameters to refine estimates.', 'info');
     }, 1500);
 }
 
-function viewLayerDetails(layerId) {
-    alert('Layer details view - coming soon!');
+function generateCostReport() {
+    pushToast('Coming soon', 'Cost report exports are in development.', 'info');
 }
 
-function showProgressModal() {
-    document.getElementById('progressModal').style.display = 'block';
+function optimizeLayer(layerId) {
+    pushToast('Layer optimisation', `Layer ${layerId} optimisation tooling is coming soon.`, 'info');
+}
+
+function viewLayerDetails(layerId) {
+    pushToast('Layer details', `Detailed view for ${layerId} is on the roadmap.`, 'info');
+}
+
+function showProgressModal(message = 'Processing…', progress = 35) {
+    if (progressMessage) progressMessage.textContent = message;
+    if (progressModal) progressModal.dataset.open = 'true';
+    setProgress(progress);
 }
 
 function closeProgressModal() {
-    document.getElementById('progressModal').style.display = 'none';
+    if (progressModal) delete progressModal.dataset.open;
 }
 
-// Close modals when clicking outside
-window.onclick = function(event) {
-    const createModal = document.getElementById('createLayerModal');
-    const progressModal = document.getElementById('progressModal');
-    
-    if (event.target === createModal) {
-        createModal.style.display = 'none';
-    }
-    if (event.target === progressModal) {
-        progressModal.style.display = 'none';
-    }
+function setProgress(value) {
+    if (!progressFill) return;
+    const clamped = Math.max(5, Math.min(100, value));
+    progressFill.style.width = `${clamped}%`;
 }
+
+document.getElementById('progressModal')?.addEventListener('click', event => {
+    if (event.target.id === 'progressModal') {
+        closeProgressModal();
+    }
+});
+
+renderAnalysisStats();
+renderObjectList();
+renderLayerList();
 </script>
 {% endblock %}

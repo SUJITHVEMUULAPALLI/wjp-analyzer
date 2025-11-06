@@ -1,0 +1,5 @@
+{
+  "daily_limit_usd": 5,
+  "used_today_usd": 0.47,
+  "note": "GPT-5 use capped at $5/day; auto-switch to GPT-4o when near limit."
+}

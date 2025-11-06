@@ -112,8 +112,9 @@ inkscape --version
 - Or: `pip install -r requirements.txt`
 
 **Web interface won't start**
-- Check if port 5000 is available: `netstat -an | findstr :5000`
-- Try a different port: `python run_web_ui.py --port 5001`
+- Check if port 8501 (Streamlit) is available: `netstat -an | findstr :8501`
+- Start Streamlit on a different port: `python run_one_click.py --mode ui --ui-backend streamlit --port 8502`
+- Alternatively, try Flask backend on port 5000: `python run_one_click.py --mode ui --ui-backend flask --port 5000`
 
 **Image-to-DXF conversion fails**
 - Ensure Potrace is installed and accessible
@@ -123,7 +124,7 @@ inkscape --version
 ## 📋 System Requirements
 
 ### Minimum Requirements
-- **Python**: 3.8+ (3.11+ recommended)
+- **Python**: 3.10+ (3.11+ recommended)
 - **RAM**: 4GB minimum, 8GB recommended
 - **Storage**: 2GB free space
 - **OS**: Windows 10+, Ubuntu 18.04+, macOS 10.15+
@@ -178,9 +179,10 @@ brew upgrade potrace inkscape
 
 Once all dependencies are installed, you can:
 
-1. **Start the web interface**: `python run_web_ui.py`
-2. **Run command-line tools**: `python main.py --help`
-3. **Test image-to-DXF conversion**: Upload an image in the web interface
+1. **Start the web interface (Streamlit)**: `python run_one_click.py --mode ui --ui-backend streamlit --host 127.0.0.1 --port 8501`
+2. **Start the web interface (Flask)**: `python run_one_click.py --mode ui --ui-backend flask --host 127.0.0.1 --port 5000`
+3. **Run command-line tools**: `python main.py --help`
+4. **Test image-to-DXF conversion**: Upload an image in the web interface
 
 For more information, see the [User Manual](USER_MANUAL.md) and [Quick Start Guide](QUICK_START_GUIDE.md).
 

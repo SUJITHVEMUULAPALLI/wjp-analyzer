@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Enhanced Image to DXF Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .conversion-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .ai-analysis-panel {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .progress-panel {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+        
+        .result-panel {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+        
+        .image-preview {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .ai-recommendation {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-left: 4px solid #fff;
+        }
+        
+        .progress-bar {
+            height: 25px;
+            border-radius: 15px;
+        }
+        
+        .btn-ai {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-ai:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            color: white;
+        }
+        
+        .style-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+        }
+        
+        .style-option {
+            padding: 8px 16px;
+            border: 2px solid #fff;
+            border-radius: 20px;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .style-option.active {
+            background: white;
+            color: #667eea;
+        }
+        
+        .live-feedback {
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .feedback-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            font-size: 0.9rem;
+        }
+        
+        .feedback-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row">
+            <div class="col-12">
+                <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+                    <div class="container-fluid">
+                        <a class="navbar-brand" href="{{ url_for('workflow.index') }}">
+                            <i class="fas fa-robot"></i> AI-Enhanced WJP Analyser
+                        </a>
+                        <div class="navbar-nav ms-auto">
+                            <a class="nav-link" href="{{ url_for('workflow.index') }}">
+                                <i class="fas fa-arrow-left"></i> Back to Workflow
+                            </a>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </div>
+
+        <div class="container mt-4">
+            <!-- Main Title -->
+            <div class="row">
+                <div class="col-12 text-center mb-4">
+                    <h1 class="display-4">
+                        <i class="fas fa-magic"></i> AI-Enhanced Image to DXF Converter
+                    </h1>
+                    <p class="lead">Generate, analyze, and convert images with AI-powered waterjet optimization</p>
+                </div>
+            </div>
+
+            <!-- Step 1: Image Generation -->
+            <div class="conversion-panel">
+                <h2><i class="fas fa-image"></i> Step 1: Generate or Upload Image</h2>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Generate with AI</h4>
+                        <div class="mb-3">
+                            <label for="prompt" class="form-label">Describe your design:</label>
+                            <textarea class="form-control" id="prompt" rows="3" 
+                                placeholder="e.g., Intricate floral pattern for waterjet cutting, geometric mandala design, architectural lattice work..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Style:</label>
+                            <div class="style-selector">
+                                <div class="style-option active" data-style="waterjet">Waterjet</div>
+                                <div class="style-option" data-style="geometric">Geometric</div>
+                                <div class="style-option" data-style="organic">Organic</div>
+                                <div class="style-option" data-style="architectural">Architectural</div>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-ai" onclick="generateImage()">
+                            <i class="fas fa-magic"></i> Generate Image
+                        </button>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h4>Upload Existing Image</h4>
+                        <div class="mb-3">
+                            <input type="file" class="form-control" id="imageUpload" accept="image/*" onchange="handleImageUpload(event)">
+                        </div>
+                        <div id="uploadPreview" class="text-center"></div>
+                    </div>
+                </div>
+                
+                <div id="generatedImage" class="text-center mt-3" style="display: none;">
+                    <h4>Generated Image:</h4>
+                    <img id="generatedImg" class="image-preview" alt="Generated image">
+                    <div class="mt-2">
+                        <button class="btn btn-ai" onclick="analyzeImage()">
+                            <i class="fas fa-brain"></i> Analyze with AI
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: AI Analysis -->
+            <div class="ai-analysis-panel" id="analysisPanel" style="display: none;">
+                <h2><i class="fas fa-brain"></i> Step 2: AI Analysis & Recommendations</h2>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Analysis Results</h4>
+                        <div id="analysisResults">
+                            <div class="text-center">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p>Analyzing image with AI...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h4>User Preferences</h4>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="preserveDetails" checked>
+                                <label class="form-check-label" for="preserveDetails">
+                                    Preserve fine details
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="aggressiveSimplification">
+                                <label class="form-check-label" for="aggressiveSimplification">
+                                    Aggressive simplification
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="optimizeForCutting" checked>
+                                <label class="form-check-label" for="optimizeForCutting">
+                                    Optimize for waterjet cutting
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="outputName" class="form-label">Output Name:</label>
+                            <input type="text" class="form-control" id="outputName" value="ai_converted_design">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Live Conversion -->
+            <div class="progress-panel" id="progressPanel">
+                <h2><i class="fas fa-cogs"></i> Step 3: Live AI Conversion</h2>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 0%" id="progressBar">
+                                <span id="progressText">Starting conversion...</span>
+                            </div>
+                        </div>
+                        
+                        <div class="live-feedback" id="liveFeedback">
+                            <!-- Live feedback will appear here -->
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <button class="btn btn-ai w-100 mb-2" onclick="startLiveConversion()">
+                            <i class="fas fa-play"></i> Start Live Conversion
+                        </button>
+                        <button class="btn btn-outline-light w-100" onclick="cancelConversion()">
+                            <i class="fas fa-stop"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Results -->
+            <div class="result-panel" id="resultPanel">
+                <h2><i class="fas fa-check-circle"></i> Step 4: Conversion Results</h2>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Conversion Summary</h4>
+                        <div id="conversionSummary">
+                            <!-- Results will appear here -->
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h4>AI Recommendations</h4>
+                        <div id="aiRecommendations">
+                            <!-- AI recommendations will appear here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-3">
+                    <button class="btn btn-ai" onclick="downloadDXF()">
+                        <i class="fas fa-download"></i> Download DXF
+                    </button>
+                    <button class="btn btn-outline-light ms-2" onclick="startOver()">
+                        <i class="fas fa-redo"></i> Start Over
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentImagePath = null;
+        let currentAnalysis = null;
+        let currentResult = null;
+        let selectedStyle = 'waterjet';
+
+        // Style selection
+        document.querySelectorAll('.style-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.style-option').forEach(o => o.classList.remove('active'));
+                this.classList.add('active');
+                selectedStyle = this.dataset.style;
+            });
+        });
+
+        // Generate image from prompt
+        async function generateImage() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                alert('Please enter a design description');
+                return;
+            }
+
+            try {
+                const response = await fetch('/ai-image/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        style: selectedStyle
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentImagePath = result.image_path;
+                    document.getElementById('generatedImg').src = result.image_path;
+                    document.getElementById('generatedImage').style.display = 'block';
+                    showMessage('Image generated successfully!', 'success');
+                } else {
+                    showMessage('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error generating image: ' + error.message, 'error');
+            }
+        }
+
+        // Handle image upload
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('uploadPreview');
+                    preview.innerHTML = `
+                        <img src="${e.target.result}" class="image-preview" alt="Uploaded image">
+                        <div class="mt-2">
+                            <button class="btn btn-ai" onclick="useUploadedImage('${e.target.result}')">
+                                <i class="fas fa-brain"></i> Analyze with AI
+                            </button>
+                        </div>
+                    `;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Use uploaded image
+        function useUploadedImage(imageData) {
+            // For now, we'll use the data URL directly
+            // In a real implementation, you'd upload the file to the server
+            currentImagePath = imageData;
+            analyzeImage();
+        }
+
+        // Analyze image with AI
+        async function analyzeImage() {
+            if (!currentImagePath) {
+                showMessage('Please generate or upload an image first', 'error');
+                return;
+            }
+
+            document.getElementById('analysisPanel').style.display = 'block';
+            
+            try {
+                const response = await fetch('/ai-image/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_path: currentImagePath,
+                        analysis_type: 'waterjet'
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentAnalysis = result.analysis;
+                    displayAnalysisResults(result.analysis);
+                    showMessage('AI analysis complete!', 'success');
+                } else {
+                    showMessage('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error analyzing image: ' + error.message, 'error');
+            }
+        }
+
+        // Display analysis results
+        function displayAnalysisResults(analysis) {
+            const resultsDiv = document.getElementById('analysisResults');
+            
+            let html = `
+                <div class="ai-recommendation">
+                    <h5><i class="fas fa-chart-line"></i> Complexity Score: ${analysis.complexity_score}/10</h5>
+                </div>
+            `;
+            
+            if (analysis.recommendations && analysis.recommendations.length > 0) {
+                html += '<h5>AI Recommendations:</h5>';
+                analysis.recommendations.forEach(rec => {
+                    html += `<div class="ai-recommendation">${rec}</div>`;
+                });
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        // Start live conversion
+        async function startLiveConversion() {
+            if (!currentImagePath) {
+                showMessage('Please generate or upload an image first', 'error');
+                return;
+            }
+
+            document.getElementById('progressPanel').style.display = 'block';
+            document.getElementById('resultPanel').style.display = 'none';
+            
+            const preferences = {
+                preserve_details: document.getElementById('preserveDetails').checked,
+                aggressive_simplification: document.getElementById('aggressiveSimplification').checked,
+                optimize_for_cutting: document.getElementById('optimizeForCutting').checked
+            };
+            
+            const outputName = document.getElementById('outputName').value || 'ai_converted_design';
+
+            try {
+                const response = await fetch('/ai-image/live-convert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_path: currentImagePath,
+                        output_name: outputName,
+                        preferences: preferences
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentResult = result.result;
+                    displayConversionResults(result.result);
+                    document.getElementById('progressPanel').style.display = 'none';
+                    document.getElementById('resultPanel').style.display = 'block';
+                    showMessage('Conversion complete!', 'success');
+                } else {
+                    showMessage('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error during conversion: ' + error.message, 'error');
+            }
+        }
+
+        // Display conversion results
+        function displayConversionResults(result) {
+            const summaryDiv = document.getElementById('conversionSummary');
+            const recommendationsDiv = document.getElementById('aiRecommendations');
+            
+            // Summary
+            summaryDiv.innerHTML = `
+                <div class="ai-recommendation">
+                    <h5><i class="fas fa-shapes"></i> Polygons Created: ${result.polygon_count}</h5>
+                </div>
+                <div class="ai-recommendation">
+                    <h5><i class="fas fa-file"></i> Output File: ${result.output_dxf}</h5>
+                </div>
+                <div class="ai-recommendation">
+                    <h5><i class="fas fa-clock"></i> Processing Time: ${new Date(result.conversion_timestamp * 1000).toLocaleTimeString()}</h5>
+                </div>
+            `;
+            
+            // AI Recommendations
+            if (result.ai_recommendations && result.ai_recommendations.length > 0) {
+                recommendationsDiv.innerHTML = result.ai_recommendations.map(rec => 
+                    `<div class="ai-recommendation">${rec}</div>`
+                ).join('');
+            } else {
+                recommendationsDiv.innerHTML = '<div class="ai-recommendation">No specific recommendations from AI analysis.</div>';
+            }
+        }
+
+        // Download DXF
+        function downloadDXF() {
+            if (currentResult && currentResult.output_dxf) {
+                window.open(currentResult.output_dxf, '_blank');
+            } else {
+                showMessage('No DXF file available for download', 'error');
+            }
+        }
+
+        // Start over
+        function startOver() {
+            currentImagePath = null;
+            currentAnalysis = null;
+            currentResult = null;
+            
+            document.getElementById('generatedImage').style.display = 'none';
+            document.getElementById('analysisPanel').style.display = 'none';
+            document.getElementById('progressPanel').style.display = 'none';
+            document.getElementById('resultPanel').style.display = 'none';
+            
+            document.getElementById('prompt').value = '';
+            document.getElementById('imageUpload').value = '';
+            document.getElementById('uploadPreview').innerHTML = '';
+        }
+
+        // Cancel conversion
+        function cancelConversion() {
+            document.getElementById('progressPanel').style.display = 'none';
+            showMessage('Conversion cancelled', 'info');
+        }
+
+        // Show message
+        function showMessage(message, type) {
+            const alertClass = type === 'error' ? 'alert-danger' : 
+                              type === 'success' ? 'alert-success' : 'alert-info';
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.insertBefore(alertDiv, document.body.firstChild);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Project: {{ project.name }}</h2>
+    <p>{{ project.description or 'No description' }}</p>
+
+    <h3>Analyses</h3>
+    {% if analyses %}
+    <ul>
+        {% for a in analyses %}
+        <li>{{ a.name }} — {{ a.status }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}<p>No analyses yet.</p>{% endif %}
+
+    <h3>Conversions</h3>
+    {% if conversions %}
+    <ul>
+        {% for c in conversions %}
+        <li>{{ c.name }} — {{ c.status }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}<p>No conversions yet.</p>{% endif %}
+
+    <h3>Nestings</h3>
+    {% if nestings %}
+    <ul>
+        {% for n in nestings %}
+        <li>{{ n.name }} — {{ n.status }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}<p>No nestings yet.</p>{% endif %}
+
+    <div class="form-actions">
+        <a class="link-button" href="{{ url_for('main.projects') }}">Back to Projects</a>
+    </div>
+</section>
+{% endblock %}
+
+

@@ -144,7 +144,7 @@ def _quick_plot_dxf(dxf_path: Path):
         ax.set_title(os.path.basename(str(dxf_path)))
         ax.set_xlabel("X (mm)")
         ax.set_ylabel("Y (mm)")
-        st.pyplot(fig, clear_figure=True, use_container_width=True)
+        st.pyplot(fig, clear_figure=True, width="stretch")
     except Exception as e:
         st.info(f"Preview skipped: {e}")
 
@@ -171,7 +171,7 @@ if run_pipeline:
             tex_out = base_out / "texture"
             dxf_path, preview_png = _run_texture_pipeline(str(image_source_path), tex_out)
             st.success("Texture vectorization complete")
-            st.image(str(preview_png), caption="Texture Preview", use_container_width=True)
+            st.image(str(preview_png), caption="Texture Preview", width="stretch")
 
             ana_out = base_out / "analysis"
             report = _analyze_dxf(dxf_path, ana_out)

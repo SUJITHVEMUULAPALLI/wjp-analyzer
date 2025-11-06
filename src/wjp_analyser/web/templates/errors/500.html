@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Internal Server Error</h2>
+    <p>Something went wrong while processing your request.</p>
+    <div class="form-actions">
+        <a class="link-button" href="{{ url_for('main.index') }}">Return Home</a>
+    </div>
+{% endblock %}
+
+
+

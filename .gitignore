@@ -1,40 +1,31 @@
-# Byte-compiled
+# Virtual environments
+.venv*/
+venv/
+env/
+
+# Python cache
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
 
-# Envs
-.venv/
-venv/
-
-# Outputs
-out/
-web_output/
-oneclick_out/
-uploads/
-output/
+# Logs and runtime data
+*.log
 logs/
-utilization_reports/
-test_output/
-test_logs/
-test_cache/
-cache/
-*.png
-*.jpg
-*.jpeg
-*.bmp
-*.tiff
-*.dxf
 
-# OS
+# Databases and output artefacts
+*.sqlite*
+*.db
+output/
+uploads/
+
+# IDE / OS files
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
 
-# Local secrets (do not commit real keys)
-config/api_keys.yaml
-*.env
-*.env.*
-*.secret
-wjp.env.txt
-archive/temp_files/*.env
-archive/temp_files/wjp.env.txt
+# Misc
+*.egg-info/
+build/
+dist/

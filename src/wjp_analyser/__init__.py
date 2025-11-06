@@ -38,9 +38,12 @@ try:
 except Exception:
     pass
 
-# Main package imports
-from .analysis import *
-from .manufacturing import *
-from .ai import *
-from .image_processing import *
-from .io import *
+# Lightweight package init: avoid importing heavy subpackages at import time to
+# prevent circular imports and speed up tools like Streamlit. Import modules
+# directly where needed, e.g. `from wjp_analyser.analysis import dxf_analyzer`.
+
+__all__ = [
+    "__version__",
+    "__author__",
+    "__description__",
+]

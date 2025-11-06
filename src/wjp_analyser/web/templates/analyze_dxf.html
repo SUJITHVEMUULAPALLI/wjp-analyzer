@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Analyze DXF</h2>
+    <p>File: <code>{{ file_path }}</code></p>
+
+    <form action="{{ url_for('main.analyze_dxf', file_id=file_id) }}" method="post">
+        <div class="form-grid">
+            <div class="form-field"><label>Material</label><input name="material" value="steel"></div>
+            <div class="form-field"><label>Thickness (mm)</label><input type="number" step="0.1" name="thickness" value="6.0"></div>
+            <div class="form-field"><label>Kerf (mm)</label><input type="number" step="0.1" name="kerf" value="1.1"></div>
+            <div class="form-field"><label>Cutting speed (mm/min)</label><input type="number" step="1" name="cutting_speed" value="1200"></div>
+            <div class="form-field"><label>Cost per meter</label><input type="number" step="0.1" name="cost_per_meter" value="50"></div>
+            <div class="form-field"><label>Sheet width (mm)</label><input type="number" step="1" name="sheet_width" value="3000"></div>
+            <div class="form-field"><label>Sheet height (mm)</label><input type="number" step="1" name="sheet_height" value="1500"></div>
+            <div class="form-field"><label>Spacing (mm)</label><input type="number" step="0.1" name="spacing" value="10"></div>
+        </div>
+        <div class="form-actions">
+            <button type="submit">Start Analysis</button>
+            <a class="link-button" href="{{ url_for('main.upload') }}">Back</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
+
+

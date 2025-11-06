@@ -21,8 +21,18 @@ from shapely.ops import unary_union
 from shapely.affinity import translate, rotate
 import time
 
-from ..object_management.dxf_object_manager import DXFObject
-from ..object_management.layer_manager import CuttingLayer, MaterialSettings, NestingSettings
+# Conditional imports to avoid circular dependencies
+try:
+    from ..object_management.dxf_object_manager import DXFObject
+except ImportError:
+    DXFObject = None  # Type hint only, will be defined if available
+
+try:
+    from ..object_management.layer_manager import CuttingLayer, MaterialSettings, NestingSettings
+except ImportError:
+    CuttingLayer = None
+    MaterialSettings = None
+    NestingSettings = None
 
 logger = logging.getLogger(__name__)
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from shapely.ops import linemerge, unary_union, polygonize
 from shapely.geometry import LineString, Polygon, Point
 from shapely.validation import make_valid

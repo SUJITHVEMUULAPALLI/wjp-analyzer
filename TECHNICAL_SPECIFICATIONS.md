@@ -5,7 +5,7 @@
 ### Core Components
 ```
 Waterjet DXF Analyzer
-├── Web Interface (Flask)
+├── Web Interface (Streamlit/Flask)
 ├── Analysis Engine
 ├── AI Integration Layer
 ├── Manufacturing Module
@@ -38,8 +38,9 @@ src/wjp_analyser/
 │   ├── visualization.py    # Preview generation
 │   └── quote_export.py     # PDF/Excel export
 └── web/
-    ├── app.py              # Flask application
-    └── templates/          # HTML templates
+    ├── app.py              # Flask application (legacy)
+    ├── _components.py      # Shared Streamlit helpers
+    └── pages/              # Streamlit pages
 ```
 
 ## 🔧 Technical Requirements
@@ -320,7 +321,7 @@ python -m venv venv
 source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
 pip install -r requirements.txt
-python run_web_ui.py
+python run_one_click.py --mode ui --ui-backend streamlit --host 127.0.0.1 --port 8501
 ```
 
 ### Production Environment

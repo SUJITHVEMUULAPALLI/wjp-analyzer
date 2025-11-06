@@ -1,0 +1,475 @@
+# WJP ANALYSER - Unified Configuration
+# ====================================
+# This is the single, consolidated configuration file for the entire WJP ANALYSER system.
+# All previous config files (unified_config.yaml, app_config.yaml, ai_config.yaml) 
+# have been merged into this single file.
+
+# Environment and version
+environment: development  # development, staging, production
+version: "2.0.0"
+app_name: "WJP ANALYSER"
+description: "Unified Waterjet DXF Analysis and Processing System"
+
+# Server configuration
+server:
+  # Default server settings
+  host: "127.0.0.1"
+  port: 8501
+  debug: false
+  threaded: true
+  processes: 1
+  
+  # SSL configuration (for production)
+  ssl_cert: null
+  ssl_key: null
+  
+  # Interface-specific ports
+  interfaces:
+    streamlit: 8501
+    flask: 5000
+    enhanced: 5001
+    supervisor: 8502
+    api: 5000
+
+# File paths and directories
+paths:
+  # Core directories
+  project_root: "."
+  src_folder: "src"
+  config_folder: "config"
+  output_folder: "output"
+  logs_folder: "logs"
+  temp_folder: "output/temp"
+  cache_folder: "cache"
+  upload_folder: "output/temp"
+  
+  # Template and static folders
+  templates_folder: "templates"
+  static_folder: "static"
+  
+  # Data directories
+  data_folder: "data"
+  samples_folder: "data/samples"
+  presets_folder: "data/presets"
+  templates_data_folder: "data/templates"
+  
+  # Output subdirectories
+  analysis_folder: "output/analysis"
+  designer_folder: "output/designer"
+  dxf_folder: "output/dxf"
+  image_analyzer_folder: "output/image_analyzer"
+  image_to_dxf_folder: "output/image_to_dxf"
+  learning_folder: "output/learning"
+  reports_folder: "output/reports"
+  utilization_reports_folder: "utilization_reports"
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  console_output: true
+  file_output: true
+  
+  # Log file settings
+  main_log_file: "logs/wjp_analyser.log"
+  error_log_file: "logs/errors.log"
+  security_log_file: "logs/security_audit.log"
+  agent_log_file: "logs/agent_log.json"
+  
+  # Log rotation
+  file_rotation:
+    enabled: true
+    max_bytes: 10485760  # 10MB
+    backup_count: 5
+  
+  # Advanced logging
+  structured_logging: true
+  log_sql_queries: false
+  log_performance_metrics: true
+
+# Performance and caching
+performance:
+  # Caching
+  cache_enabled: true
+  cache_size: 100
+  cache_ttl: 3600  # seconds
+  
+  # Processing
+  max_workers: 4
+  timeout: 300  # seconds
+  connection_pool_size: 10
+  max_connections: 100
+  
+  # Optimization
+  enable_compression: true
+  compression_level: 6
+  enable_parallel_processing: true
+  
+  # Memory management
+  max_memory_usage: 1073741824  # 1GB
+  cleanup_interval: 3600  # seconds
+
+# Security configuration
+security:
+  # Authentication
+  secret_key: null  # Set via WJP_SECRET_KEY environment variable
+  jwt_secret_key: null  # Set via WJP_JWT_SECRET_KEY environment variable
+  master_password: null  # Set via WJP_MASTER_PASSWORD environment variable
+  
+  # File upload security
+  max_upload_size: 33554432  # 32MB
+  allowed_extensions:
+    - dxf
+    - jpg
+    - jpeg
+    - png
+    - bmp
+    - tiff
+    - pdf
+    - svg
+  
+  # CORS settings
+  enable_cors: false
+  cors_origins:
+    - "http://localhost:5000"
+    - "http://127.0.0.1:5000"
+    - "http://localhost:8501"
+    - "http://127.0.0.1:8501"
+    - "http://localhost:5001"
+    - "http://127.0.0.1:5001"
+  
+  # Security headers
+  security_headers:
+    x_content_type_options: "nosniff"
+    x_frame_options: "DENY"
+    x_xss_protection: "1; mode=block"
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+  
+  # Session settings
+  session_settings:
+    permanent: false
+    timeout: 3600  # seconds
+    secure: false  # Set to true for HTTPS
+    httponly: true
+    samesite: "Lax"
+  
+  # Rate limiting
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_limit: 10
+    window_size: 60  # seconds
+  
+  # File validation
+  file_validation:
+    max_filename_length: 255
+    allowed_chars: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    scan_for_malware: false
+
+# AI and OpenAI configuration
+ai:
+  # OpenAI settings
+  openai:
+    api_key: null  # Set via OPENAI_API_KEY environment variable
+    model: "gpt-4"
+    max_tokens: 2000
+    temperature: 0.7
+    timeout: 30
+    
+    # Model variants
+    chat_model: "gpt-4o-mini"
+    image_model: "gpt-image-1"
+    fallback_model: "dall-e-3"
+  
+  # Ollama settings (alternative AI)
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "llama2"
+    timeout: 60
+  
+  # AI features
+  enabled: true
+  fallback_enabled: true
+  mock_responses: false
+  
+  # AI analysis settings
+  analysis:
+    component_limit: 50
+    max_summary_chars: 40000
+    enable_insights: true
+    enable_design_generation: true
+
+# Database configuration
+database:
+  type: "sqlite"  # sqlite, postgresql, mysql
+  host: "localhost"
+  port: 5432
+  name: "wjp_analyser"
+  username: "wjp_user"
+  password: null  # Set via WJP_DATABASE_PASSWORD environment variable
+  
+  # Connection settings
+  pool_size: 10
+  max_overflow: 20
+  echo: false
+  ssl_mode: "prefer"
+  
+  # SQLite specific
+  sqlite_file: "wjp_analyser.db"
+
+# Redis configuration (for caching and sessions)
+redis:
+  host: "localhost"
+  port: 6379
+  password: null  # Set via WJP_REDIS_PASSWORD environment variable
+  db: 0
+  max_connections: 20
+  socket_timeout: 5
+  socket_connect_timeout: 5
+  retry_on_timeout: true
+
+# Celery configuration (for background tasks)
+celery:
+  broker_url: "redis://localhost:6379/0"
+  result_backend: "redis://localhost:6379/0"
+  task_serializer: "json"
+  result_serializer: "json"
+  accept_content:
+    - "json"
+  timezone: "UTC"
+  enable_utc: true
+  task_track_started: true
+  task_time_limit: 300
+  task_soft_time_limit: 240
+  worker_prefetch_multiplier: 1
+  worker_max_tasks_per_child: 1000
+
+# Feature flags - Enable/disable specific features
+features:
+  # Core features
+  ai_analysis: true
+  image_conversion: true
+  nesting: true
+  cost_estimation: true
+  
+  # Interface features
+  guided_mode: true
+  batch_processing: true
+  real_time_preview: true
+  interactive_components: true
+  
+  # Advanced features
+  collaborative_features: false
+  api_access: true
+  webhooks: false
+  monitoring: true
+  
+  # Workflow features
+  designer_workflow: true
+  image_to_dxf_workflow: true
+  dxf_analysis_workflow: true
+  nesting_workflow: true
+  supervisor_dashboard: true
+
+# Default parameters for analysis
+defaults:
+  # Material settings
+  material: "steel"
+  thickness: 6.0
+  kerf: 1.1
+  
+  # Cutting parameters
+  cutting_speed: 1200.0
+  rapid_speed: 10000.0
+  pierce_time: 0.5
+  
+  # Cost settings
+  cost_per_meter: 50.0
+  rate_per_m: 825.0
+  
+  # Sheet settings
+  sheet_width: 3000.0
+  sheet_height: 1500.0
+  spacing: 10.0
+  
+  # Quality settings
+  quality_level: "high"
+  simplify_tolerance: 0.02
+  fillet_radius_mm: 0.50
+  fillet_min_angle_deg: 120.0
+
+# Image processing configuration
+image_processing:
+  # Edge detection
+  edge_threshold: 0.33
+  canny_low: 50
+  canny_high: 150
+  
+  # Contour processing
+  min_contour_area: 100
+  simplify_tolerance: 0.02
+  blur_kernel_size: 5
+  
+  # Image limits
+  max_image_size: 4096
+  
+  # Supported formats
+  supported_formats:
+    - "jpg"
+    - "jpeg"
+    - "png"
+    - "bmp"
+    - "tiff"
+    - "webp"
+  
+  # Texture vectorization
+  texture_modes:
+    - "Auto Mix"
+    - "Edges"
+    - "Stipple"
+    - "Hatch"
+    - "Contour"
+  
+  # Kerf compensation
+  kerf_compensation_modes:
+    - "None"
+    - "Outward (+kerf/2)"
+    - "Inward (-kerf/2)"
+    - "Inside/Outside (+/- kerf/2)"
+
+# Monitoring and observability
+monitoring:
+  # Prometheus metrics
+  prometheus_enabled: true
+  prometheus_port: 8000
+  
+  # Grafana dashboards
+  grafana_enabled: true
+  grafana_port: 3000
+  
+  # ELK stack
+  elk_enabled: true
+  
+  # Jaeger tracing
+  jaeger_enabled: true
+  jaeger_endpoint: "http://localhost:14268/api/traces"
+  
+  # Metrics collection
+  metrics_interval: 30
+  log_level: "INFO"
+  
+  # Performance monitoring
+  enable_performance_monitoring: true
+  enable_error_tracking: true
+
+# Development and testing
+development:
+  # Development features
+  hot_reload: false
+  profile_requests: false
+  debug_toolbar: false
+  
+  # Testing
+  test_mode: false
+  mock_ai_responses: false
+  
+  # Debugging
+  enable_caching: true
+  verbose_logging: false
+  
+  # Development tools
+  enable_profiling: false
+  enable_memory_debugging: false
+
+# Workflow configuration
+workflows:
+  # Designer workflow
+  designer:
+    enabled: true
+    default_prompt_template: "Generate a waterjet-compatible {design_type} design using {material}, with dimensions {dimensions}, in a {style} style."
+    waterjet_constraints: "≥3 mm spacing, ≥2 mm inner radius curves, no floating parts, clean geometry, continuous contours."
+  
+  # Image to DXF workflow
+  image_to_dxf:
+    enabled: true
+    default_mode: "Edges"
+    default_kerf_width: 1.1
+    default_simplify_tolerance: 0.2
+    default_min_feature_size: 1.0
+    default_min_feature_area: 4.0
+  
+  # DXF Analysis workflow
+  dxf_analysis:
+    enabled: true
+    enable_advanced_toolpath: true
+    enable_cost_estimation: true
+    enable_quality_analysis: true
+  
+  # Nesting workflow
+  nesting:
+    enabled: true
+    algorithms: ["rectangular", "irregular"]
+    optimization_level: "high"
+    enable_rotation: true
+    max_rotation_angle: 90
+
+# Integration settings
+integrations:
+  # External services
+  openai:
+    enabled: true
+    timeout: 30
+    retry_attempts: 3
+  
+  # File format support
+  ezdxf:
+    enabled: true
+    version: "latest"
+  
+  # Image processing
+  opencv:
+    enabled: true
+    version: "latest"
+  
+  # Web frameworks
+  streamlit:
+    enabled: true
+    version: "latest"
+  
+  flask:
+    enabled: true
+    version: "latest"
+
+# Backup and recovery
+backup:
+  enabled: false
+  interval: 86400  # 24 hours
+  retention_days: 30
+  backup_location: "backups"
+  
+  # What to backup
+  backup_config: true
+  backup_database: true
+  backup_logs: false
+  backup_outputs: false
+
+# Environment-specific overrides
+environments:
+  development:
+    debug: true
+    hot_reload: true
+    verbose_logging: true
+  
+  staging:
+    debug: false
+    hot_reload: false
+    verbose_logging: false
+  
+  production:
+    debug: false
+    hot_reload: false
+    verbose_logging: false
+    ssl_enabled: true
+    rate_limiting:
+      enabled: true
+      requests_per_minute: 30

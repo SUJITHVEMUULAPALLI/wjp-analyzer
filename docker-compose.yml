@@ -1,0 +1,176 @@
+# Docker Compose for Development Environment
+# ==========================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: wjp_postgres
+    environment:
+      POSTGRES_DB: wjp_analyser
+      POSTGRES_USER: wjp_user
+      POSTGRES_PASSWORD: wjp_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wjp_user -d wjp_analyser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache and Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: wjp_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # WJP ANALYSER Web Application (Streamlit-only)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wjp_web
+    environment:
+      - WJP_DATABASE_TYPE=postgresql
+      - WJP_DATABASE_HOST=postgres
+      - WJP_DATABASE_PORT=5432
+      - WJP_DATABASE_NAME=wjp_analyser
+      - WJP_DATABASE_USERNAME=wjp_user
+      - WJP_DATABASE_PASSWORD=wjp_password
+      - WJP_REDIS_HOST=redis
+      - WJP_REDIS_PORT=6379
+      - WJP_JWT_SECRET_KEY=dev-jwt-secret-key-change-in-production
+      - WJP_MASTER_PASSWORD=dev-master-password-change-in-production
+      - WJP_SERVER_DEBUG=true
+      - WJP_LOG_LEVEL=DEBUG
+    volumes:
+      - .:/app
+      - web_logs:/app/logs
+      - web_output:/app/output
+      - web_uploads:/app/uploads
+      - web_cache:/app/cache
+    ports:
+      - "8501:8501"  # Streamlit interface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wjp_worker
+    command: celery -A src.wjp_analyser.workers.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - WJP_DATABASE_TYPE=postgresql
+      - WJP_DATABASE_HOST=postgres
+      - WJP_DATABASE_PORT=5432
+      - WJP_DATABASE_NAME=wjp_analyser
+      - WJP_DATABASE_USERNAME=wjp_user
+      - WJP_DATABASE_PASSWORD=wjp_password
+      - WJP_REDIS_HOST=redis
+      - WJP_REDIS_PORT=6379
+      - WJP_JWT_SECRET_KEY=dev-jwt-secret-key-change-in-production
+      - WJP_MASTER_PASSWORD=dev-master-password-change-in-production
+      - WJP_LOG_LEVEL=INFO
+    volumes:
+      - .:/app
+      - worker_logs:/app/logs
+      - worker_output:/app/output
+      - worker_uploads:/app/uploads
+      - worker_cache:/app/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "src.wjp_analyser.workers.celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Beat (Scheduler)
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wjp_beat
+    command: celery -A src.wjp_analyser.workers.celery_app beat --loglevel=info
+    environment:
+      - WJP_DATABASE_TYPE=postgresql
+      - WJP_DATABASE_HOST=postgres
+      - WJP_DATABASE_PORT=5432
+      - WJP_DATABASE_NAME=wjp_analyser
+      - WJP_DATABASE_USERNAME=wjp_user
+      - WJP_DATABASE_PASSWORD=wjp_password
+      - WJP_REDIS_HOST=redis
+      - WJP_REDIS_PORT=6379
+      - WJP_JWT_SECRET_KEY=dev-jwt-secret-key-change-in-production
+      - WJP_MASTER_PASSWORD=dev-master-password-change-in-production
+      - WJP_LOG_LEVEL=INFO
+    volumes:
+      - .:/app
+      - beat_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Flower (Celery Monitoring)
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: wjp_flower
+    command: celery -A src.wjp_analyser.workers.celery_app flower --port=5555
+    environment:
+      - WJP_REDIS_HOST=redis
+      - WJP_REDIS_PORT=6379
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # (Optional) Reverse proxy removed for Streamlit-only dev setup
+
+volumes:
+  postgres_data:
+  redis_data:
+  web_logs:
+  web_output:
+  web_uploads:
+  web_cache:
+  worker_logs:
+  worker_output:
+  worker_uploads:
+  worker_cache:
+  beat_logs:

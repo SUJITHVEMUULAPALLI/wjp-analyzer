@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from shapely.geometry import Polygon, LineString
 from shapely.ops import unary_union
 from typing import List, Dict
@@ -99,4 +101,3 @@ def check_min_spacing(polys: list[Polygon], limit_mm: float=3.0) -> list[dict]:
                         }
                     )
     return issues
-

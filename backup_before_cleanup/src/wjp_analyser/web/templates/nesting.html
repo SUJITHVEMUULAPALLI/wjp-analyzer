@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Nesting</h2>
+    <p>Arrange multiple DXF files on a sheet for optimal material usage.</p>
+    
+    <form method="post" action="{{ url_for('create_nest') }}" enctype="multipart/form-data" class="form-grid">
+        <div class="form-field">
+            <label for="files">DXF Files</label>
+            <input type="file" id="files" name="files" accept=".dxf" multiple required>
+            <small>Select multiple DXF files to nest on a sheet</small>
+        </div>
+
+        <h3>Sheet Parameters</h3>
+        <div class="form-row">
+            <div class="form-field">
+                <label for="sheet_width">Sheet Width (mm)</label>
+                <input type="number" id="sheet_width" name="sheet_width" step="1" min="100" value="{{ nesting_defaults.sheet_width }}">
+            </div>
+            <div class="form-field">
+                <label for="sheet_height">Sheet Height (mm)</label>
+                <input type="number" id="sheet_height" name="sheet_height" step="1" min="100" value="{{ nesting_defaults.sheet_height }}">
+            </div>
+            <div class="form-field">
+                <label for="spacing">Spacing (mm)</label>
+                <input type="number" id="spacing" name="spacing" step="0.5" min="0" value="{{ nesting_defaults.spacing }}">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Inspect Files</button>
+            <a class="link-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </form>
+</section>
+
+{% if inspection and not nesting_results %}
+<section class="card">
+    <h2>Inspect Parts</h2>
+    <p>Review detected dimensions and set quantities for each part before nesting.</p>
+    <form method="post" action="{{ url_for('confirm_nest') }}" class="form-grid">
+        <input type="hidden" name="nesting_id" value="{{ nesting_id }}">
+        <div class="data-table">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Width &times; Height (mm)</th>
+                        <th>Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part in inspection.parts %}
+                    <tr>
+                        <td>{{ part.file }}</td>
+                        <td>{{ part.width | round(1) }} &times; {{ part.height | round(1) }}</td>
+                        <td>
+                            <label for="qty_{{ loop.index0 }}" class="sr-only">Quantity</label>
+                            <input type="number" id="qty_{{ loop.index0 }}" name="qty_{{ loop.index0 }}" min="1" step="1" value="1" placeholder="Quantity">
+                            <input type="hidden" name="path_{{ loop.index0 }}" value="{{ part.path }}">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="form-actions">
+            <button type="submit">Create Nest</button>
+        </div>
+    </form>
+</section>
+{% endif %}
+
+{% if nesting_results %}
+<section class="card">
+    <h2>Nesting Results</h2>
+    
+    <div class="metrics-grid">
+        <div class="metric">
+            <span class="metric-label">Sheet Utilization</span>
+            <span>{{ nesting_results['utilization_percent'] }}%</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Total Items</span>
+            <span>{{ nesting_results['total_items'] }}</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Sheet Size</span>
+            <span>{{ nesting_results['sheet_dimensions']['width'] }} &times; {{ nesting_results['sheet_dimensions']['height'] }} mm</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Spacing</span>
+            <span>{{ nesting_results['spacing'] }} mm</span>
+        </div>
+    </div>
+
+    {% if nesting_results['items'] %}
+        <h3>Nested Items</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Position (X, Y)</th>
+                    <th>Dimensions</th>
+                    <th>Row</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in nesting_results['items'] %}
+                    <tr>
+                        <td>{{ item.file }}</td>
+                        <td>({{ item.position.x | round(1) }}, {{ item.position.y | round(1) }})</td>
+                        <td>{{ item.dimensions.width | round(1) }} &times; {{ item.dimensions.height | round(1) }} mm</td>
+                        <td>{{ item.row }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <div class="downloads">
+        <h3>Downloads</h3>
+        <a class="download-link" href="{{ url_for('download_nested_dxf', nesting_id=nesting_id) }}">Download Nested DXF</a>
+        <a class="download-link" href="{{ url_for('download_nesting_report', nesting_id=nesting_id) }}">Download Nesting Report</a>
+    </div>
+
+    <section class="next-actions">
+        <h3>Next Steps</h3>
+        <p>What would you like to do with the nested layout?</p>
+        <div class="cta-grid">
+            <a class="cta-button" href="{{ url_for('dxf_analysis') }}?dxf_path={{ nested_dxf_path }}">Analyze Nested DXF</a>
+            <a class="cta-button" href="{{ url_for('gcode_generation') }}?dxf_path={{ nested_dxf_path }}">Generate G-code</a>
+            <a class="cta-button" href="{{ url_for('nesting') }}">Create Another Nest</a>
+            <a class="cta-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </section>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>Waterjet DXF Workflow</h2>
+    <p>Choose your starting point in the waterjet processing workflow:</p>
+    
+    <div class="workflow-steps">
+        <div class="workflow-step">
+            <h3>1. Image Analysis</h3>
+            <p>Analyze images for DXF conversion suitability before processing.</p>
+            <a class="cta-button" href="{{ url_for('image_analysis') }}">Analyze Image</a>
+        </div>
+        
+        <div class="workflow-step">
+            <h3>2. Image to DXF</h3>
+            <p>Convert raster images (JPG, PNG, etc.) to DXF format by extracting contours.</p>
+            <a class="cta-button" href="{{ url_for('image_to_dxf') }}">Convert Image</a>
+        </div>
+        
+        <div class="workflow-step">
+            <h3>3. DXF Validation</h3>
+            <p>Validate DXF geometry, check for issues, and analyze cutting paths.</p>
+            <a class="cta-button" href="{{ url_for('dxf_analysis') }}">Validate DXF</a>
+        </div>
+        
+        <div class="workflow-step">
+            <h3>4. Nesting</h3>
+            <p>Arrange multiple DXF files on a sheet for optimal material usage.</p>
+            <a class="cta-button" href="{{ url_for('nesting') }}">Create Nest</a>
+        </div>
+        
+        <div class="workflow-step">
+            <h3>5. G-code Generation</h3>
+            <p>Generate machine-ready G-code from analyzed DXF files.</p>
+            <a class="cta-button" href="{{ url_for('gcode_generation') }}">Generate G-code</a>
+        </div>
+        
+        <div class="workflow-step">
+            <h3>6. AI Analysis</h3>
+            <p>Get AI-powered manufacturing insights and recommendations.</p>
+            <a class="cta-button" href="{{ url_for('ai_analysis') }}">Run AI Analysis</a>
+        </div>
+    </div>
+    
+    <div class="quick-actions">
+        <h3>Quick Actions</h3>
+        <a class="link-button" href="{{ url_for('generate_sample') }}">Download Sample DXF</a>
+        <a class="link-button" href="{{ url_for('flooring') }}">Flooring Calculator</a>
+        <a class="link-button" href="{{ url_for('handle_relayer') }}">Move Entities by Handle</a>
+    </div>
+</section>
+{% endblock %}

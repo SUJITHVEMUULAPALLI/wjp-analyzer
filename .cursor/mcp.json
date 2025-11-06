@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "wjp_mcp_local": {
+      "url": "http://127.0.0.1:8000/mcp",
+      "tools": {
+        "run_tests": { "args": { "file_path": "string" } },
+        "lint_file": { "args": { "file_path": "string" } },
+        "budget_check": {},
+        "choose_model": { "args": { "task": "string" } }
+      }
+    }
+  }
+}
+
+

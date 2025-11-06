@@ -414,14 +414,16 @@ class ParameterValidator:
         if not kerf_result.is_valid:
             result.is_valid = False
         
-        # Validate cutting speed
-        speed_result = self.validate_numeric_parameter(
-            params.get('cutting_speed'), 'cutting_speed', min_val=100, max_val=3000
-        )
-        result.errors.extend(speed_result.errors)
-        result.warnings.extend(speed_result.warnings)
-        if not speed_result.is_valid:
-            result.is_valid = False
+        # Validate cutting speed when supplied. Treat missing values as "use defaults"
+        cutting_speed_value = params.get('cutting_speed')
+        if cutting_speed_value not in (None, ""):
+            speed_result = self.validate_numeric_parameter(
+                cutting_speed_value, 'cutting_speed', min_val=100, max_val=3000
+            )
+            result.errors.extend(speed_result.errors)
+            result.warnings.extend(speed_result.warnings)
+            if not speed_result.is_valid:
+                result.is_valid = False
         
         return result
     

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>Viewer Error</h2>
+  <p>Failed to render <code>{{ filename }}</code>.</p>
+  <pre style="white-space:pre-wrap; background:#f8f8f8; padding:12px; border:1px solid #eee;">{{ error }}</pre>
+  <p>Check that the DXF is valid and try again.</p>
+</section>
+{% endblock %}
+

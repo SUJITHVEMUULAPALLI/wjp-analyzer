@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+    <h2>🤖 AI-Powered Manufacturing Analysis</h2>
+    <p>Upload a DXF file to get comprehensive AI analysis including feasibility scoring, manufacturing recommendations, and optimization tips.</p>
+    
+    <form method="post" action="{{ url_for('run_ai_analysis') }}" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="file">DXF File:</label>
+            <input type="file" id="file" name="file" accept=".dxf" required>
+            <small>Upload a DXF file for AI analysis</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="ai_model">AI Model Selection:</label>
+            <select id="ai_model" name="ai_model" required>
+                <option value="auto">🔄 Auto (Try best model first)</option>
+                <option value="waterjet:latest">🦙 Ollama - waterjet:latest (Custom waterjet model)</option>
+                <option value="gpt-oss:20b">🦙 Ollama - gpt-oss:20b (General purpose)</option>
+                <option value="llama3.2-vision:latest">🦙 Ollama - llama3.2-vision (Vision model)</option>
+                <option value="openai" disabled>🧠 OpenAI - GPT-4 (API key required)</option>
+            </select>
+            <small>Choose which AI model to use for analysis. OpenAI requires API key setup.</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="timeout">Timeout (seconds):</label>
+            <select id="timeout" name="timeout">
+                <option value="120">2 minutes (Fast)</option>
+                <option value="300" selected>5 minutes (Recommended)</option>
+                <option value="600">10 minutes (Thorough)</option>
+            </select>
+            <small>How long to wait for AI response</small>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="cta-button">Run AI Analysis</button>
+            <a class="link-button" href="{{ url_for('index') }}">Back to Workflow</a>
+        </div>
+    </form>
+    
+    <div class="info-box">
+        <h3>What AI Analysis Provides:</h3>
+        <ul>
+            <li><strong>Feasibility Score:</strong> 0-100 rating of manufacturing feasibility</li>
+            <li><strong>Complexity Assessment:</strong> Simple/Moderate/Complex/Expert classification</li>
+            <li><strong>Time Estimation:</strong> Estimated manufacturing time</li>
+            <li><strong>Material Recommendations:</strong> Optimal material suggestions</li>
+            <li><strong>Toolpath Suggestions:</strong> Cutting strategy recommendations</li>
+            <li><strong>Potential Issues:</strong> Identified manufacturing challenges</li>
+            <li><strong>Optimization Tips:</strong> Cost and efficiency improvements</li>
+            <li><strong>Cost Considerations:</strong> Budget and pricing insights</li>
+        </ul>
+    </div>
+    
+    <div class="ai-models">
+        <h3>Available AI Models:</h3>
+        <div class="model-info">
+            <div class="model-card">
+                <h4>🦙 Ollama (Local)</h4>
+                <p>Uses local AI models for privacy and speed</p>
+                <small>Models: waterjet:latest, gpt-oss:20b, llama3.2-vision</small>
+            </div>
+            <div class="model-card">
+                <h4>🧠 OpenAI (Cloud)</h4>
+                <p>Uses GPT-4 for advanced analysis</p>
+                <small>Requires API key configuration</small>
+            </div>
+        </div>
+        
+        <div class="ai-status">
+            <h3>AI Model Selection Options</h3>
+            <p><strong>Auto Mode:</strong> Tries models in order of preference until one succeeds</p>
+            <ol>
+                <li><strong>waterjet:latest</strong> - Custom waterjet model (best for manufacturing)</li>
+                <li><strong>gpt-oss:20b</strong> - General purpose model (reliable fallback)</li>
+                <li><strong>llama3.2-vision</strong> - Vision model (good for complex geometries)</li>
+                <li><strong>OpenAI GPT-4</strong> - Cloud model (API key not configured)</li>
+            </ol>
+            <p><strong>Manual Selection:</strong> Choose a specific model for consistent results</p>
+            <p><em>Timeout settings: 2 min (fast), 5 min (recommended), 10 min (thorough)</em></p>
+            <div class="api-key-notice">
+                <strong>⚠️ OpenAI API Key:</strong> Not configured. To use OpenAI, set OPENAI_API_KEY environment variable or update config/api_keys.yaml
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.info-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+}
+
+.info-box h3 {
+    margin-top: 0;
+    color: #2d3748;
+}
+
+.info-box ul {
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.info-box li {
+    margin: 0.5rem 0;
+}
+
+.ai-models {
+    margin-top: 2rem;
+}
+
+.model-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.model-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.model-card h4 {
+    margin: 0 0 0.5rem 0;
+    color: #2d3748;
+}
+
+.model-card p {
+    margin: 0.5rem 0;
+    color: #4a5568;
+}
+
+.model-card small {
+    color: #718096;
+    font-size: 0.875rem;
+}
+
+.ai-status {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: #edf2f7;
+    border-radius: 8px;
+    border-left: 4px solid #3182ce;
+}
+
+.ai-status h3 {
+    margin-top: 0;
+    color: #2d3748;
+}
+
+.ai-status ol {
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+}
+
+.ai-status li {
+    margin: 0.5rem 0;
+    color: #4a5568;
+}
+
+.ai-status p {
+    color: #4a5568;
+    margin: 1rem 0;
+}
+
+.ai-status em {
+    color: #718096;
+    font-style: italic;
+}
+
+.api-key-notice {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #fef5e7;
+    border: 1px solid #f6ad55;
+    border-radius: 6px;
+    color: #744210;
+}
+
+.api-key-notice strong {
+    color: #744210;
+}
+
+.form-group {
+    margin: 1.5rem 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 1rem;
+    background: #ffffff;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #3182ce;
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 0.25rem;
+    color: #718096;
+    font-size: 0.875rem;
+}
+
+.form-actions {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.cta-button {
+    background: #3182ce;
+    color: white;
+    padding: 1rem 2rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.cta-button:hover {
+    background: #2c5aa0;
+}
+</style>
+{% endblock %}

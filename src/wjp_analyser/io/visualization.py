@@ -22,12 +22,11 @@ def preview_png(
     annotate_labels: bool = False,
     max_labels: int = 60,
 ) -> None:
-    """Render a toolpath preview.
+    """Render a clean DXF preview.
 
-    - Colors by class (outer/inner)
-    - Optional sparse order labels to avoid clutter
-    - Optional kerf preview overlay
-    - Adds a small legend with counts
+    - Shows only DXF objects and contours
+    - Outer contours in solid lines
+    - Inner contours in dashed lines
     """
     fig, ax = plt.subplots(figsize=(6, 6))
     n = len(polys)
@@ -79,27 +78,21 @@ def preview_png(
                 xk, yk = pg.exterior.xy
                 ax.plot(xk, yk, color="#444", linewidth=0.6, alpha=0.6)
 
+    # Set aspect ratio to equal for proper scaling
     ax.set_aspect("equal", adjustable="box")
+    
+    # Remove axes and frame for clean preview
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_frame_on(False)
+    
+    # Ensure white background
+    ax.set_facecolor('white')
+    fig.patch.set_facecolor('white')
 
-    # simple legend-like summary
-    total = n
-    outers = sum(1 for i in range(n) if classes.get(i) == "outer")
-    inners = total - outers
-    ax.text(
-        0.01,
-        0.99,
-        f"Polys: {total} | Outer: {outers} | Inner: {inners}",
-        transform=ax.transAxes,
-        fontsize=8,
-        va="top",
-        ha="left",
-        bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.5, linewidth=0.0),
-    )
-
-    fig.savefig(path, dpi=180, bbox_inches="tight")
+    # Save with minimal padding and high resolution
+    fig.savefig(path, dpi=300, bbox_inches='tight', pad_inches=0.1, 
+                facecolor='white', edgecolor='none')
     plt.close(fig)
 
 

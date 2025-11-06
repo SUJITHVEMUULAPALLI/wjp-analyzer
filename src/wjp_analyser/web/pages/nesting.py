@@ -118,7 +118,7 @@ if st.button("Nest", type="primary", disabled=not bool(dxf_path)):
         # Inline preview
         try:
             fig = _render_nest_preview(out_entities, width, height)
-            st.pyplot(fig, clear_figure=True, use_container_width=True)
+            st.pyplot(fig, clear_figure=True, width="stretch")
         except Exception as pe:
             st.info(f"Preview not available: {pe}")
         # Quick handoff to Analyze DXF
