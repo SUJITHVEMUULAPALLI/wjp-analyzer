@@ -13,7 +13,7 @@ if _SRC_DIR not in sys.path:
 
 # Import modules
 from wjp_analyser.web.modules.dxf_utils import (
-    SESSION_DXF_KEY, SESSION_PATH_KEY, SESSION_EDIT_LOG, SESSION_LAYER_VIS, SESSION_SELECTED
+    SESSION_DXF_KEY, SESSION_PATH_KEY, SESSION_EDIT_LOG, SESSION_LAYER_VIS, SESSION_SELECTED, SESSION_HISTORY
 )
 from wjp_analyser.web.modules import dxf_editor_core as core
 from wjp_analyser.web.modules.dxf_renderer import render_svg
@@ -75,6 +75,31 @@ with st.sidebar:
 
     st.divider()
     st.header("Actions")
+    
+    # Undo/Redo buttons
+    history = st.session_state.get(SESSION_HISTORY)
+    if history:
+        col_undo, col_redo = st.columns(2)
+        with col_undo:
+            undo_disabled = not history.can_undo()
+            if st.button("↶ Undo", disabled=undo_disabled, use_container_width=True):
+                if core.undo_last_action(st):
+                    st.success("Undone")
+                    safe_rerun()
+        with col_redo:
+            redo_disabled = not history.can_redo()
+            if st.button("↷ Redo", disabled=redo_disabled, use_container_width=True):
+                if core.redo_last_action(st):
+                    st.success("Redone")
+                    safe_rerun()
+        
+        # History info
+        info = history.get_history_info()
+        st.caption(f"Undo: {info['undo_count']} | Redo: {info['redo_count']}")
+    
+    st.divider()
+    
+    # Save
     save_name = st.text_input("Save as (filename.dxf)", value=os.path.basename(working_path).replace(".dxf", "_edited.dxf"))
     save_dir = st.text_input("Save directory", value=os.path.dirname(working_path))
     if st.button("💾 Save DXF"):
@@ -89,6 +114,8 @@ with st.sidebar:
     st.caption("Edit Log")
     if st.button("Clear Log"):
         st.session_state[SESSION_EDIT_LOG] = []
+        if history:
+            history.clear()
     st.json(st.session_state.get(SESSION_EDIT_LOG, []))
 
 # Main layout: left table, right preview
@@ -137,6 +164,62 @@ with left:
             if st.button("Clear Selection"):
                 st.session_state[SESSION_SELECTED] = set()
                 st.info("Selection cleared.")
+        
+        # Transform tools
+        if selected_handles:
+            st.divider()
+            st.subheader("Transform Selected")
+            selected_list = list(selected_handles)
+            
+            # Move
+            with st.expander("📍 Move", expanded=False):
+                col_dx, col_dy = st.columns(2)
+                with col_dx:
+                    dx = st.number_input("ΔX (mm)", value=0.0, step=1.0, key="move_dx")
+                with col_dy:
+                    dy = st.number_input("ΔY (mm)", value=0.0, step=1.0, key="move_dy")
+                if st.button("Apply Move", key="move_btn"):
+                    count = core.apply_transform(st, selected_list, "move", dx=dx, dy=dy)
+                    if count:
+                        st.success(f"Moved {count} entities")
+                        safe_rerun()
+            
+            # Rotate
+            with st.expander("🔄 Rotate", expanded=False):
+                angle = st.number_input("Angle (degrees)", value=0.0, step=15.0, key="rotate_angle")
+                col_cx, col_cy = st.columns(2)
+                with col_cx:
+                    center_x = st.number_input("Center X", value=0.0, key="rotate_cx")
+                with col_cy:
+                    center_y = st.number_input("Center Y", value=0.0, key="rotate_cy")
+                if st.button("Apply Rotate", key="rotate_btn"):
+                    count = core.apply_transform(st, selected_list, "rotate", angle=angle, center=(center_x, center_y))
+                    if count:
+                        st.success(f"Rotated {count} entities")
+                        safe_rerun()
+            
+            # Scale
+            with st.expander("🔍 Scale", expanded=False):
+                factor = st.number_input("Scale Factor", value=1.0, min_value=0.01, max_value=100.0, step=0.1, key="scale_factor")
+                col_bx, col_by = st.columns(2)
+                with col_bx:
+                    base_x = st.number_input("Base Point X", value=0.0, key="scale_bx")
+                with col_by:
+                    base_y = st.number_input("Base Point Y", value=0.0, key="scale_by")
+                if st.button("Apply Scale", key="scale_btn"):
+                    count = core.apply_transform(st, selected_list, "scale", factor=factor, base_point=(base_x, base_y))
+                    if count:
+                        st.success(f"Scaled {count} entities")
+                        safe_rerun()
+            
+            # Mirror
+            with st.expander("🪞 Mirror", expanded=False):
+                axis = st.radio("Axis", ["X", "Y"], horizontal=True, key="mirror_axis")
+                if st.button("Apply Mirror", key="mirror_btn"):
+                    count = core.apply_transform(st, selected_list, "mirror", axis=axis)
+                    if count:
+                        st.success(f"Mirrored {count} entities")
+                        safe_rerun()
 
 with right:
     st.subheader("Preview")

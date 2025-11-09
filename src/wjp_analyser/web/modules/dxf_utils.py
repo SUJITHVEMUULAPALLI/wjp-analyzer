@@ -10,6 +10,7 @@ SESSION_PATH_KEY = "wjp_dxf_path"
 SESSION_EDIT_LOG = "wjp_edit_log"
 SESSION_LAYER_VIS = "wjp_layer_visibility"
 SESSION_SELECTED = "wjp_selected_handles"
+SESSION_HISTORY = "wjp_dxf_history_manager"
 
 
 def load_document(path: str) -> ezdxf.EzDxfDrawing:

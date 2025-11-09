@@ -4,12 +4,14 @@ import os
 import tempfile
 from typing import Dict, List
 from .dxf_utils import (
-    SESSION_DXF_KEY, SESSION_PATH_KEY, SESSION_EDIT_LOG, SESSION_LAYER_VIS, SESSION_SELECTED,
+    SESSION_DXF_KEY, SESSION_PATH_KEY, SESSION_EDIT_LOG, SESSION_LAYER_VIS, SESSION_SELECTED, SESSION_HISTORY,
     load_document, save_document, temp_copy, list_layers, entity_summary, delete_entities_by_handle
 )
 
 
 def ensure_session_keys(st):
+    from .dxf_history_service import HistoryManager
+    
     for k, default in [
         (SESSION_DXF_KEY, None),
         (SESSION_PATH_KEY, None),
@@ -18,6 +20,10 @@ def ensure_session_keys(st):
         (SESSION_SELECTED, set()),
     ]:
         st.session_state.setdefault(k, default)
+    
+    # Initialize history manager if not present
+    if SESSION_HISTORY not in st.session_state:
+        st.session_state[SESSION_HISTORY] = HistoryManager()
 
 
 def load_from_analyzer_or_upload(st, uploaded_file):
@@ -88,7 +94,59 @@ def apply_delete(st, handles: List[str]) -> int:
     count = delete_entities_by_handle(doc, handles)
     if count:
         st.session_state[SESSION_EDIT_LOG].append({"action": "delete", "handles": handles})
+        # Record in history
+        history = st.session_state.get(SESSION_HISTORY)
+        if history:
+            history.record_batch("delete", handles, {})
     return count
+
+
+def apply_transform(st, handles: List[str], operation: str, **params) -> int:
+    """Apply a transformation to selected entities."""
+    from .dxf_transform_service import transform_entities
+    
+    doc = st.session_state.get(SESSION_DXF_KEY)
+    if not doc or not handles:
+        return 0
+    
+    count = transform_entities(doc, handles, operation, **params)
+    if count:
+        # Record in edit log
+        log_entry = {"action": operation, "handles": handles, "params": params}
+        st.session_state[SESSION_EDIT_LOG].append(log_entry)
+        
+        # Record in history for undo/redo
+        history = st.session_state.get(SESSION_HISTORY)
+        if history:
+            history.record_batch(operation, handles, params)
+    
+    return count
+
+
+def undo_last_action(st) -> bool:
+    """Undo the last action."""
+    doc = st.session_state.get(SESSION_DXF_KEY)
+    if not doc:
+        return False
+    
+    history = st.session_state.get(SESSION_HISTORY)
+    if not history:
+        return False
+    
+    return history.undo(doc)
+
+
+def redo_last_action(st) -> bool:
+    """Redo the last undone action."""
+    doc = st.session_state.get(SESSION_DXF_KEY)
+    if not doc:
+        return False
+    
+    history = st.session_state.get(SESSION_HISTORY)
+    if not history:
+        return False
+    
+    return history.redo(doc)
 
 
 def save_as(st, out_path: str) -> str:
