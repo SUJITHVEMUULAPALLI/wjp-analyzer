@@ -22,6 +22,20 @@ if str(src_dir) not in sys.path:
 from wjp_analyser.ai.openai_agents_manager import get_agents_manager, is_agents_sdk_available
 
 
+def safe_rerun():
+    """Safely trigger a Streamlit rerun, handling internal exceptions."""
+    try:
+        st.rerun()
+    except Exception:
+        # Streamlit's internal rerun exceptions should be re-raised
+        # This prevents them from being displayed as user-facing errors
+        import streamlit.runtime.scriptrunner.script_runner as script_runner
+        if isinstance(script_runner.RerunException, type):
+            raise
+        # For other exceptions, just rerun normally
+        st.rerun()
+
+
 def render_agents_interface():
     """Render the OpenAI Agents management interface."""
     
@@ -294,7 +308,7 @@ def render_interactive_tab(agents_manager):
     # Clear chat button
     if st.button("🗑️ Clear Chat History"):
         st.session_state.chat_history = []
-        st.rerun()
+        safe_rerun()
 
 
 def collect_image_to_dxf_input() -> Dict[str, Any]:

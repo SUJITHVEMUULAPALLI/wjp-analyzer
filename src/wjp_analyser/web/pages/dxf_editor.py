@@ -80,8 +80,21 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ============================================================================
 
 def safe_rerun():
-    """Safely trigger a Streamlit rerun."""
-    st.rerun()
+    """Safely trigger a Streamlit rerun, handling internal exceptions."""
+    try:
+        st.rerun()
+    except Exception:
+        # Streamlit's internal rerun exceptions should be re-raised
+        # This prevents them from being displayed as user-facing errors
+        import streamlit.runtime.scriptrunner.script_runner as script_runner
+        try:
+            # Check if it's a RerunException
+            if hasattr(script_runner, 'RerunException'):
+                raise
+        except:
+            pass
+        # For other exceptions, just rerun normally
+        st.rerun()
 
 
 def initialize_session_state():

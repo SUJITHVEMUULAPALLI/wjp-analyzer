@@ -18,6 +18,20 @@ from wjp_analyser.web.modules.dxf_utils import (
 from wjp_analyser.web.modules import dxf_editor_core as core
 from wjp_analyser.web.modules.dxf_renderer import render_svg
 
+
+def safe_rerun():
+    """Safely trigger a Streamlit rerun, handling internal exceptions."""
+    try:
+        st.rerun()
+    except Exception:
+        # Streamlit's internal rerun exceptions should be re-raised
+        # This prevents them from being displayed as user-facing errors
+        import streamlit.runtime.scriptrunner.script_runner as script_runner
+        if isinstance(script_runner.RerunException, type):
+            raise
+        # For other exceptions, just rerun normally
+        st.rerun()
+
 st.set_page_config(page_title="WJP – DXF Editor", layout="wide")
 
 st.title("DXF Editor")
@@ -116,7 +130,7 @@ with left:
                 if count:
                     st.success(f"Deleted {count} entities.")
                     st.session_state[SESSION_SELECTED] = set()
-                    st.rerun()
+                    safe_rerun()
                 else:
                     st.warning("Nothing deleted.")
         with c2:
