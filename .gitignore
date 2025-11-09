@@ -29,3 +29,9 @@ Thumbs.db
 *.egg-info/
 build/
 dist/
+
+# Config files with secrets
+config/unified_config_migrated.yaml
+backup_before_cleanup/config/unified_config_migrated.yaml
+config/api_keys.yaml
+*.yaml.backup
