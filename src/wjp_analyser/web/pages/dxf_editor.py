@@ -1,6 +1,27 @@
+"""
+DXF Editor - Enhanced Streamlit Interface
+==========================================
+
+A comprehensive DXF editor with visualization, editing, analysis, and export capabilities.
+
+Features:
+- Upload and visualize DXF files
+- Layer management (create, rename, recolor, visibility)
+- Entity selection and grouping
+- Transform operations (translate, scale, rotate)
+- Drawing tools (line, circle, rectangle, polyline)
+- Measurement and validation tools
+- AI-powered analysis and recommendations
+- Waterjet-specific cleanup and validation
+- Export edited DXF files
+"""
+
 import os
 from pathlib import Path
 import sys
+import time
+import tempfile
+from typing import List, Dict, Any, Optional, Tuple
 
 # Ensure 'src' is on sys.path so 'wjp_analyser' is importable when Streamlit runs this page directly
 _THIS_FILE = Path(__file__).resolve()
@@ -10,8 +31,11 @@ if _SRC_DIR not in sys.path:
 
 import streamlit as st
 import importlib
-import time
-from typing import List, Dict, Any
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+# Import DXF editor utilities
 from wjp_analyser.dxf_editor import (
     load_dxf,
     save_dxf,
@@ -36,1248 +60,1125 @@ from wjp_analyser.dxf_editor import (
     load_session,
     save_session,
 )
+from wjp_analyser.dxf_editor.measure import bbox_of_entity, bbox_size, polyline_length
+from wjp_analyser.dxf_editor.operation_executor import OperationExecutor
+from wjp_analyser.ai.recommendation_engine import Operation, OperationType
 
 # Reload module to avoid stale imports during Streamlit hot-reload
 import wjp_analyser.dxf_editor as dxf_mod
 dxf_mod = importlib.reload(dxf_mod)
 
+# ============================================================================
+# Configuration and Constants
+# ============================================================================
 
-def _plot_entities_inline(entities):
-    # Legacy plotter not used; preserved for reference
-    return None
+OUTPUT_DIR = Path("output") / "dxf_editor"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+def safe_rerun():
+    """Safely trigger a Streamlit rerun."""
+    st.rerun()
+
+
+def initialize_session_state():
+    """Initialize session state variables."""
+    if "state" not in st.session_state:
+        st.session_state["state"] = {
+            "selected": [],
+            "hidden_layers": [],
+            "session_path": "session.json"
+        }
+    # Initialize analysis results
+    if "analysis_results" not in st.session_state:
+        st.session_state["analysis_results"] = None
+    if "show_recommendations" not in st.session_state:
+        st.session_state["show_recommendations"] = False
+
+
+def get_layer_names(doc) -> List[str]:
+    """Get list of layer names from DXF document."""
+    try:
+        return list(dxf_mod.get_layers(doc).keys())
+    except Exception:
+        try:
+            return [getattr(e.dxf, "name", getattr(e, "name", "0")) for e in doc.layers]
+        except Exception:
+            return ["0"]
+
+
+def render_fallback_preview(doc, save_dxf_func):
+    """Render polygonized preview when no supported entities are found."""
+    st.markdown("""
+    <div style="background-color: #FFEBEE; border-left: 4px solid #F44336; padding: 10px; margin: 10px 0; border-radius: 4px;">
+        <p style="color: #C62828; font-weight: 500; margin: 0;">⚠️ <strong>Warning:</strong> No supported entities (LINE, CIRCLE, LWPOLYLINE) found. Showing polygonized preview for reference.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    try:
+        from wjp_analyser.nesting.dxf_extractor import extract_polygons
+        from wjp_analyser.dxf_editor.preview_utils import (
+            classify_polygon_layers,
+            get_layer_color,
+            convert_hex_to_rgb
+        )
+        
+        # Save to temp and extract
+        temp_dir = Path("output") / "editor_preview"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = temp_dir / f"preview_src_{int(time.time())}.dxf"
+        save_dxf_func(doc, str(temp_path))
+        polys = extract_polygons(str(temp_path))
+        
+        if not polys:
+            st.info("No closed polygons detected in this DXF.")
+            return
+        
+        # Classify polygons into layers
+        classified = classify_polygon_layers(polys)
+        
+        # Find bounding box for normalization
+        all_points = []
+        for p in polys:
+            pts = p.get("points", [])
+            if len(pts) >= 3:
+                all_points.extend(pts)
+        
+        if not all_points:
+            st.info("No valid polygons detected in this DXF.")
+            return
+        
+        min_x = min(p[0] for p in all_points)
+        min_y = min(p[1] for p in all_points)
+        
+        # Create figure with normalized coordinates
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        # Render polygons with layer-based colors
+        layer_order = ["OUTER", "INNER", "HOLE", "COMPLEX", "DECOR"]
+        for layer_name in layer_order:
+            layer_polys = classified.get(layer_name, [])
+            if not layer_polys:
+                continue
+            
+            color_info = get_layer_color(layer_name)
+            fill_color = convert_hex_to_rgb(color_info["fill"])
+            edge_color = convert_hex_to_rgb(color_info["edge"])
+            alpha = color_info["alpha"]
+            
+            # Render each polygon in this layer with normalization
+            for poly_data in layer_polys:
+                original_points = poly_data.get("points", [])
+                if len(original_points) < 3:
+                    continue
+                
+                # Normalize this polygon's points
+                norm_pts = [(x - min_x, y - min_y) for x, y in original_points]
+                
+                # Ensure polygon is closed for proper rendering
+                if norm_pts[0] != norm_pts[-1]:
+                    norm_pts.append(norm_pts[0])
+                
+                xs = [x for x, y in norm_pts]
+                ys = [y for x, y in norm_pts]
+                
+                # Render with appropriate z-order (OUTER first as background)
+                z_order = 1 if layer_name == "OUTER" else 2
+                ax.fill(xs, ys, color=fill_color, alpha=alpha, 
+                       edgecolor=edge_color, linewidth=0.8, zorder=z_order)
+        
+        # Set up axes
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_title("DXF Preview (Normalized to Origin)", fontsize=14, fontweight='bold')
+        ax.set_xlabel('X (mm)', fontsize=12)
+        ax.set_ylabel('Y (mm)', fontsize=12)
+        
+        # Add legend
+        from matplotlib.patches import Patch
+        legend_elements = []
+        for layer_name in ["OUTER", "INNER"]:
+            if classified.get(layer_name):
+                color_info = get_layer_color(layer_name)
+                fill_color = convert_hex_to_rgb(color_info["fill"])
+                count = len(classified[layer_name])
+                legend_elements.append(
+                    Patch(facecolor=fill_color, edgecolor=convert_hex_to_rgb(color_info["edge"]),
+                         label=f"{layer_name} ({count})")
+                )
+        if legend_elements:
+            ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
+        
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+        
+    except Exception as ex:
+        import traceback
+        st.error(f"Preview extraction unavailable: {ex}")
+        if st.checkbox("Show detailed error", key="show_preview_error"):
+            st.code(traceback.format_exc())
+
+
+def build_warning_markers() -> Dict[str, List[str]]:
+    """Build warning markers from AI analysis if available."""
+    warning_markers = {}
+    
+    if not (st.session_state.get("_editor_ai_analysis") and st.session_state.get("_editor_analysis_report")):
+        return warning_markers
+    
+    report = st.session_state.get("_editor_analysis_report")
+    
+    # Get enabled warnings
+    enabled_warnings = {}
+    if "editor_recommendations" in st.session_state:
+        for w_type, w_data in st.session_state["editor_recommendations"].get("warnings", {}).items():
+            if w_data.get("enabled", True):
+                enabled_warnings[w_type] = w_data.get("data", {})
+    
+    # Map component IDs to entity handles via handle attribute
+    components = report.get("components", [])
+    for comp in components:
+        comp_id = comp.get("id")
+        handle = comp.get("handle")
+        comp_warnings = []
+        
+        # Check warning conditions
+        if comp.get("area", 0) == 0 and "zero_area" in enabled_warnings:
+            comp_warnings.append("zero_area")
+        area = comp.get("area", 0)
+        if 0 < area < 1.0 and "too_many_tiny" in enabled_warnings:
+            comp_warnings.append("too_many_tiny")
+        
+        if comp_warnings and handle:
+            warning_markers[handle] = comp_warnings
+    
+    return warning_markers
+
+
+# ============================================================================
+# UI Components
+# ============================================================================
+
+def render_layer_management(doc, layer_names: List[str]):
+    """Render layer management UI in sidebar."""
+    st.header("Layers")
+    
+    # Create new layer
+    new_layer = st.text_input("Create Layer", value="WJP_NEW", key="new_layer_input")
+    if st.button("Add Layer", key="add_layer_btn"):
+        try:
+            ensure_layer(doc, new_layer, color=7)
+            st.success(f"Layer '{new_layer}' created.")
+            safe_rerun()
+        except BaseException as e:
+            # Re-raise Streamlit's internal rerun exceptions immediately
+            exception_type = type(e).__name__
+            exception_module = type(e).__module__ if hasattr(type(e), '__module__') else ''
+            if "Rerun" in exception_type or "streamlit" in exception_module.lower():
+                if "Rerun" in exception_type:
+                    raise  # Re-raise Streamlit's internal rerun exceptions
+            # Only show error for actual failures
+            st.error(f"Failed to create layer: {e}")
+    
+    # Rename layer
+    if layer_names:
+        layer_pick = st.selectbox("Pick Layer", options=layer_names, key="layer_pick_select")
+        new_name = st.text_input("Rename Layer To", value=layer_pick, key="rename_layer_input")
+        if st.button("Rename Layer", key="rename_layer_btn"):
+            try:
+                rename_layer(doc, layer_pick, new_name)
+                st.success(f"Renamed layer {layer_pick} → {new_name}")
+                safe_rerun()
+            except BaseException as e:
+                exception_type = type(e).__name__
+                if "Rerun" in exception_type:
+                    raise
+                st.error(f"Failed to rename layer: {e}")
+        
+        # Recolor layer
+        new_color = st.number_input("ACI Color (1-255)", value=7, min_value=1, max_value=255, step=1, key="layer_color_input")
+        if st.button("Recolor Layer", key="recolor_layer_btn"):
+            try:
+                recolor_layer(doc, layer_pick, int(new_color))
+                st.success(f"Layer {layer_pick} recolored to {int(new_color)}")
+            except Exception as e:
+                st.error(f"Failed to recolor layer: {e}")
+    
+    # Layer visibility
+    st.subheader("Layer Visibility")
+    vis_multi = st.multiselect(
+        "Hidden Layers", 
+        options=layer_names if layer_names else ["0"], 
+        default=st.session_state["state"]["hidden_layers"],
+        key="hidden_layers_select"
+    )
+    st.session_state["state"]["hidden_layers"] = vis_multi
+
+
+def render_group_management(doc, entities: List):
+    """Render group management UI in sidebar."""
+    st.header("Groups")
+    
+    try:
+        existing_groups = list_groups(doc)
+        if existing_groups:
+            st.write("Existing:", existing_groups)
+        else:
+            st.caption("No groups yet")
+    except Exception as e:
+        st.warning(f"Could not list groups: {e}")
+    
+    grp_name = st.text_input("New Group Name", value="group_1", key="group_name_input")
+    if st.button("Group Selection", key="group_selection_btn"):
+        try:
+            sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
+            if sel:
+                create_group(doc, grp_name, [e.dxf.handle for e in sel])
+                st.success(f"Created group '{grp_name}' with {len(sel)} entities")
+            else:
+                st.warning("No entities selected. Select entities first.")
+        except Exception as e:
+            st.error(f"Failed to create group: {e}")
+
+
+def render_selection_tools(doc, entities: List):
+    """Render entity selection tools in sidebar."""
+    st.header("Selection")
+    
+    selected_count = len(st.session_state["state"]["selected"])
+    st.caption(f"{selected_count} entity(ies) selected")
+    
+    if selected_count > 0:
+        if st.button("Clear Selection", key="clear_selection_btn"):
+            st.session_state["state"]["selected"] = []
+            safe_rerun()
+    
+    # Pick entity by coordinates
+    st.subheader("Pick Entity")
+    col_x, col_y = st.columns(2)
+    with col_x:
+        x = st.number_input("X", value=0.0, key="pick_x_input")
+    with col_y:
+        y = st.number_input("Y", value=0.0, key="pick_y_input")
+    tol = st.number_input("Tolerance", value=2.0, min_value=0.1, step=0.1, key="pick_tol_input")
+    
+    if st.button("Pick @ (X,Y)", key="pick_entity_btn"):
+        try:
+            picked = pick_entity(entities, x, y, tol)
+            if picked:
+                handle = picked.dxf.handle
+                if handle not in st.session_state["state"]["selected"]:
+                    st.session_state["state"]["selected"].append(handle)
+                    st.success(f"Selected {picked.dxftype()} on layer {picked.dxf.layer}")
+                else:
+                    st.info("Entity already selected")
+            else:
+                st.warning("No entity near that point.")
+        except Exception as e:
+            st.error(f"Failed to pick entity: {e}")
+    
+    # Move selected to layer
+    st.subheader("Move Selected to Layer")
+    move_to = st.text_input("Target Layer", value="OUTER", key="move_to_layer_input")
+    if st.button("Move to Layer", key="move_to_layer_btn"):
+        try:
+            sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
+            if sel:
+                ensure_layer(doc, move_to, color=7)
+                move_entities_to_layer(sel, move_to)
+                st.success(f"Moved {len(sel)} entities to layer '{move_to}'")
+            else:
+                st.warning("No entities selected.")
+        except Exception as e:
+            st.error(f"Failed to move entities: {e}")
+
+
+def render_transform_tools(doc, msp, entities: List):
+    """Render transform operations UI."""
+    st.header("Transform Operations")
+    st.caption("Apply transformations to selected entities")
+    
+    selected_count = len(st.session_state["state"]["selected"])
+    if selected_count == 0:
+        st.info("Select entities first to apply transformations")
+        return
+    
+    st.write(f"**{selected_count} entity(ies) selected**")
+    
+    # Translate
+    with st.expander("📍 Translate (Move)", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            dx = st.number_input("ΔX (mm)", value=0.0, step=1.0, key="translate_dx")
+        with col2:
+            dy = st.number_input("ΔY (mm)", value=0.0, step=1.0, key="translate_dy")
+        if st.button("Apply Translation", key="translate_btn"):
+            try:
+                sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
+                for e in sel:
+                    translate(e, dx, dy)
+                st.success(f"Translated {len(sel)} entities by ({dx}, {dy})")
+                safe_rerun()
+            except Exception as e:
+                st.error(f"Translation failed: {e}")
+    
+    # Scale
+    with st.expander("🔍 Scale"):
+        scale_factor = st.number_input("Scale Factor", value=1.0, min_value=0.01, max_value=100.0, step=0.1, key="scale_factor")
+        if st.button("Apply Scaling", key="scale_btn"):
+            try:
+                sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
+                for e in sel:
+                    scale(e, scale_factor)
+                st.success(f"Scaled {len(sel)} entities by {scale_factor}x")
+                safe_rerun()
+            except Exception as e:
+                st.error(f"Scaling failed: {e}")
+    
+    # Rotate
+    with st.expander("🔄 Rotate"):
+        angle = st.number_input("Angle (degrees)", value=0.0, step=15.0, key="rotate_angle")
+        if st.button("Apply Rotation", key="rotate_btn"):
+            try:
+                sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
+                for e in sel:
+                    rotate(e, angle)
+                st.success(f"Rotated {len(sel)} entities by {angle}°")
+                safe_rerun()
+            except Exception as e:
+                st.error(f"Rotation failed: {e}")
+
+
+def render_drawing_tools(doc, msp):
+    """Render drawing tools UI."""
+    st.header("Drawing Tools")
+    st.caption("Add new entities to the drawing")
+    
+    # Get current layer
+    layer_names = get_layer_names(doc)
+    current_layer = st.selectbox("Target Layer", options=layer_names if layer_names else ["0"], key="draw_layer")
+    
+    # Line
+    with st.expander("📏 Line", expanded=True):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            x1 = st.number_input("X1", value=0.0, key="line_x1")
+        with col2:
+            y1 = st.number_input("Y1", value=0.0, key="line_y1")
+        with col3:
+            x2 = st.number_input("X2", value=100.0, key="line_x2")
+        with col4:
+            y2 = st.number_input("Y2", value=100.0, key="line_y2")
+        if st.button("Add Line", key="add_line_btn"):
+            try:
+                add_line(msp, x1, y1, x2, y2, layer=current_layer)
+                st.success(f"Line added from ({x1}, {y1}) to ({x2}, {y2})")
+                safe_rerun()
+            except Exception as e:
+                st.error(f"Failed to add line: {e}")
+    
+    # Circle
+    with st.expander("⭕ Circle"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            cx = st.number_input("Center X", value=0.0, key="circle_cx")
+        with col2:
+            cy = st.number_input("Center Y", value=0.0, key="circle_cy")
+        with col3:
+            radius = st.number_input("Radius", value=50.0, min_value=0.1, key="circle_r")
+        if st.button("Add Circle", key="add_circle_btn"):
+            try:
+                add_circle(msp, cx, cy, radius, layer=current_layer)
+                st.success(f"Circle added at ({cx}, {cy}) with radius {radius}")
+                safe_rerun()
+            except Exception as e:
+                st.error(f"Failed to add circle: {e}")
+    
+    # Rectangle
+    with st.expander("▭ Rectangle"):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            rect_x = st.number_input("X", value=0.0, key="rect_x")
+        with col2:
+            rect_y = st.number_input("Y", value=0.0, key="rect_y")
+        with col3:
+            rect_w = st.number_input("Width", value=100.0, min_value=0.1, key="rect_w")
+        with col4:
+            rect_h = st.number_input("Height", value=100.0, min_value=0.1, key="rect_h")
+        if st.button("Add Rectangle", key="add_rect_btn"):
+            try:
+                add_rect(msp, rect_x, rect_y, rect_w, rect_h, layer=current_layer)
+                st.success(f"Rectangle added at ({rect_x}, {rect_y}) size {rect_w}x{rect_h}")
+                safe_rerun()
+            except Exception as e:
+                st.error(f"Failed to add rectangle: {e}")
+    
+    # Polyline
+    with st.expander("📐 Polyline"):
+        st.caption("Enter points as comma-separated x,y pairs (one per line)")
+        polyline_points = st.text_area(
+            "Points (x1,y1\\nx2,y2\\n...)", 
+            value="0,0\n100,0\n100,100\n0,100",
+            key="polyline_points",
+            height=100
+        )
+        closed = st.checkbox("Closed", value=True, key="polyline_closed")
+        if st.button("Add Polyline", key="add_polyline_btn"):
+            try:
+                points = []
+                for line in polyline_points.strip().split('\n'):
+                    line = line.strip()
+                    if ',' in line:
+                        parts = line.split(',')
+                        if len(parts) >= 2:
+                            x = float(parts[0].strip())
+                            y = float(parts[1].strip())
+                            points.append((x, y))
+                if len(points) >= 2:
+                    add_polyline(msp, points, closed=closed, layer=current_layer)
+                    st.success(f"Polyline added with {len(points)} points")
+                    safe_rerun()
+                else:
+                    st.warning("Need at least 2 points for a polyline")
+            except Exception as e:
+                st.error(f"Failed to add polyline: {e}")
+
+
+def render_measurement_tools(entities: List):
+    """Render measurement tools UI."""
+    st.header("Measurement Tools")
+    st.caption("Measure distances and dimensions")
+    
+    selected_count = len(st.session_state["state"]["selected"])
+    
+    # Distance between two points
+    with st.expander("📏 Distance Between Points", expanded=True):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            p1x = st.number_input("Point 1 X", value=0.0, key="dist_p1x")
+        with col2:
+            p1y = st.number_input("Point 1 Y", value=0.0, key="dist_p1y")
+        with col3:
+            p2x = st.number_input("Point 2 X", value=100.0, key="dist_p2x")
+        with col4:
+            p2y = st.number_input("Point 2 Y", value=100.0, key="dist_p2y")
+        if st.button("Calculate Distance", key="calc_dist_btn"):
+            try:
+                dist = distance((p1x, p1y), (p2x, p2y))
+                st.metric("Distance", f"{dist:.2f} mm")
+            except Exception as e:
+                st.error(f"Distance calculation failed: {e}")
+    
+    # Selected entity measurements
+    if selected_count > 0:
+        with st.expander("📊 Selected Entity Measurements"):
+            sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
+            if sel:
+                try:
+                    for i, e in enumerate(sel[:5]):  # Limit to first 5
+                        st.write(f"**Entity {i+1}:** {e.dxftype()}")
+                        bbox = bbox_of_entity(e)
+                        if bbox and bbox != (0, 0, 0, 0):
+                            size = bbox_size(bbox)
+                            st.write(f"  - Bounding Box: {bbox}")
+                            st.write(f"  - Size: {size[0]:.2f} × {size[1]:.2f} mm")
+                        
+                        if e.dxftype() == "LWPOLYLINE":
+                            length = polyline_length(e)
+                            st.write(f"  - Length: {length:.2f} mm")
+                        st.divider()
+                    
+                    if len(sel) > 5:
+                        st.caption(f"... and {len(sel) - 5} more entities")
+                except Exception as e:
+                    st.error(f"Measurement failed: {e}")
+
+
+def render_validation_tools(entities: List):
+    """Render validation tools UI."""
+    st.header("Validation Tools")
+    st.caption("Check for waterjet compatibility issues")
+    
+    selected_count = len(st.session_state["state"]["selected"])
+    
+    # Min radius check
+    with st.expander("🔍 Minimum Radius Check", expanded=True):
+        min_radius = st.number_input("Minimum Radius (mm)", value=2.0, min_value=0.1, step=0.1, key="min_radius")
+        
+        if selected_count > 0:
+            check_selected = st.checkbox("Check Selected Entities Only", value=True, key="check_selected")
+        else:
+            check_selected = False
+        
+        if st.button("Run Validation", key="validate_btn"):
+            try:
+                entities_to_check = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]] if check_selected and selected_count > 0 else entities
+                
+                violations = []
+                passed = 0
+                for e in entities_to_check:
+                    is_valid, info = check_min_radius(e, min_radius)
+                    if not is_valid and info.get("type") == "radius":
+                        violations.append({
+                            "entity": e,
+                            "type": e.dxftype(),
+                            "radius": info.get("value", 0),
+                            "min": info.get("min", min_radius)
+                        })
+                    elif is_valid:
+                        passed += 1
+                
+                if violations:
+                    st.warning(f"⚠️ Found {len(violations)} violation(s)")
+                    for v in violations[:10]:  # Show first 10
+                        st.write(f"- {v['type']}: radius {v['radius']:.2f} mm < {v['min']:.2f} mm")
+                    if len(violations) > 10:
+                        st.caption(f"... and {len(violations) - 10} more")
+                else:
+                    st.success(f"✅ All {passed} entities passed minimum radius check")
+            except Exception as e:
+                st.error(f"Validation failed: {e}")
+    
+    # Kerf preview
+    with st.expander("⚙️ Kerf Preview"):
+        kerf = st.number_input("Kerf Width (mm)", value=1.1, min_value=0.0, step=0.1, key="kerf_value")
+        kerf_val = kerf_preview_value(kerf)
+        st.info(f"Kerf preview value: {kerf_val:.2f} mm")
+        st.caption("This value can be used for offset calculations in cutting operations")
+
+
+def run_dxf_analysis(doc) -> Optional[Dict[str, Any]]:
+    """Run DXF analysis on current document and get recommendations."""
+    try:
+        # Save document to temporary file
+        temp_dir = Path("output") / "dxf_editor" / "temp_analysis"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = temp_dir / f"analysis_{int(time.time())}.dxf"
+        
+        # Save current document
+        save_dxf(doc, str(temp_path))
+        
+        # Run analysis
+        from wjp_analyser.analysis.dxf_analyzer import analyze_dxf
+        
+        with st.spinner("Running DXF analysis..."):
+            report = analyze_dxf(str(temp_path))
+        
+        # Get recommendations
+        from wjp_analyser.ai.recommendation_engine import analyze_and_recommend
+        
+        with st.spinner("Generating recommendations..."):
+            recommendations = analyze_and_recommend(report)
+        
+        # Clean up temp file
+        try:
+            if temp_path.exists():
+                temp_path.unlink()
+        except Exception:
+            pass
+        
+        return {
+            "report": report,
+            "recommendations": recommendations,
+            "operations": recommendations.get("operations", []),
+            "readiness_score": recommendations.get("readiness_score", {}),
+            "summary": recommendations.get("summary", {})
+        }
+    except Exception as e:
+        st.error(f"Analysis failed: {e}")
+        import traceback
+        if st.checkbox("Show detailed error", key="show_analysis_error"):
+            st.code(traceback.format_exc())
+        return None
+
+
+def preview_operation(operation_dict: Dict, doc, msp) -> Dict[str, Any]:
+    """Preview an operation without applying it."""
+    try:
+        # Convert dict to Operation object
+        op = Operation(
+            operation=OperationType(operation_dict["operation"]),
+            parameters=operation_dict.get("parameters", {}),
+            rationale=operation_dict.get("rationale", ""),
+            estimated_impact=operation_dict.get("estimated_impact", {}),
+            auto_apply=operation_dict.get("auto_apply", False),
+            affected_count=operation_dict.get("affected_count", 0),
+            severity=operation_dict.get("severity", "info")
+        )
+        
+        executor = OperationExecutor(doc, msp)
+        result = executor.execute(op, preview=True)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def apply_operation(operation_dict: Dict, doc, msp) -> Dict[str, Any]:
+    """Apply an operation to the DXF document."""
+    try:
+        # Convert dict to Operation object
+        op = Operation(
+            operation=OperationType(operation_dict["operation"]),
+            parameters=operation_dict.get("parameters", {}),
+            rationale=operation_dict.get("rationale", ""),
+            estimated_impact=operation_dict.get("estimated_impact", {}),
+            auto_apply=operation_dict.get("auto_apply", False),
+            affected_count=operation_dict.get("affected_count", 0),
+            severity=operation_dict.get("severity", "info")
+        )
+        
+        executor = OperationExecutor(doc, msp)
+        result = executor.execute(op, preview=False)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def apply_all_auto_fixes(operations: List[Dict], doc, msp):
+    """Apply all auto-apply operations in batch."""
+    if not operations:
+        st.info("No auto-apply operations available")
+        return
+    
+    progress_bar = st.progress(0)
+    results = []
+    
+    for i, op in enumerate(operations):
+        progress_bar.progress((i + 1) / len(operations))
+        result = apply_operation(op, doc, msp)
+        results.append(result)
+    
+    progress_bar.empty()
+    
+    # Show summary
+    success_count = sum(1 for r in results if r.get("success"))
+    total_affected = sum(r.get("affected_count", 0) for r in results if r.get("success"))
+    
+    if success_count == len(operations):
+        st.success(f"✅ Successfully applied {success_count} auto-fixes affecting {total_affected} entities")
+    else:
+        st.warning(f"⚠️ Applied {success_count}/{len(operations)} auto-fixes. {len(operations) - success_count} failed.")
+        for i, result in enumerate(results):
+            if not result.get("success"):
+                st.error(f"Failed: {operations[i].get('operation')} - {result.get('error', 'Unknown error')}")
+    
+    # Clear analysis results to force re-analysis
+    st.session_state["analysis_results"] = None
+    safe_rerun()
+
+
+def render_analysis_and_recommendations(doc, msp, entities: List):
+    """Render analysis and recommendations UI section."""
+    st.header("🔍 Analysis & Recommendations")
+    
+    # Run Analysis button
+    if st.button("Run Analysis", type="primary", key="run_analysis_btn", use_container_width=True):
+        results = run_dxf_analysis(doc)
+        if results:
+            st.session_state["analysis_results"] = results
+            st.success("Analysis completed!")
+            safe_rerun()
+    
+    # Display results if available
+    if st.session_state.get("analysis_results"):
+        results = st.session_state["analysis_results"]
+        
+        # Readiness Score
+        readiness = results.get("readiness_score", {})
+        score = readiness.get("score", 0)
+        level = readiness.get("level", "unknown")
+        
+        # Color coding
+        if score >= 80:
+            color = "🟢"
+            status_color = "green"
+        elif score >= 60:
+            color = "🟡"
+            status_color = "orange"
+        elif score >= 40:
+            color = "🟠"
+            status_color = "orange"
+        else:
+            color = "🔴"
+            status_color = "red"
+        
+        st.markdown(f"### {color} Readiness: {score}% ({level.upper()})")
+        
+        # Summary
+        summary = results.get("summary", {})
+        st.markdown("#### Issues Found")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            critical = summary.get("critical_count", 0)
+            if critical > 0:
+                st.metric("Critical", critical, delta=None, delta_color="inverse")
+            else:
+                st.metric("Critical", 0)
+        with col2:
+            error = summary.get("error_count", 0)
+            if error > 0:
+                st.metric("Errors", error, delta=None, delta_color="inverse")
+            else:
+                st.metric("Errors", 0)
+        with col3:
+            warning = summary.get("warning_count", 0)
+            if warning > 0:
+                st.metric("Warnings", warning, delta=None, delta_color="off")
+            else:
+                st.metric("Warnings", 0)
+        with col4:
+            info = summary.get("info_count", 0)
+            st.metric("Info", info)
+        
+        # Operations summary
+        total_ops = summary.get("total_operations", 0)
+        auto_apply = summary.get("auto_apply_count", 0)
+        
+        if total_ops > 0:
+            st.markdown(f"**Total Recommendations**: {total_ops}")
+            if auto_apply > 0:
+                st.info(f"⚡ {auto_apply} operation(s) can be auto-applied")
+        
+        # Show recommendations button
+        if st.button("View Recommendations", key="view_recommendations_btn", use_container_width=True):
+            st.session_state["show_recommendations"] = not st.session_state.get("show_recommendations", False)
+            safe_rerun()
+        
+        # Display recommendations if requested
+        if st.session_state.get("show_recommendations"):
+            operations = results.get("operations", [])
+            if operations:
+                st.markdown("---")
+                st.markdown("### 📋 Recommendations")
+                
+                # Group by severity
+                critical_ops = [op for op in operations if op.get("severity") == "critical"]
+                error_ops = [op for op in operations if op.get("severity") == "error"]
+                warning_ops = [op for op in operations if op.get("severity") == "warning"]
+                info_ops = [op for op in operations if op.get("severity") == "info"]
+                
+                # Batch apply auto-fixes button
+                auto_apply_ops = [op for op in operations if op.get("auto_apply")]
+                if auto_apply_ops:
+                    st.markdown("---")
+                    if st.button("⚡ Apply All Auto-Fixes", type="primary", key="apply_all_auto_btn", use_container_width=True):
+                        apply_all_auto_fixes(auto_apply_ops, doc, msp)
+                
+                # Critical
+                if critical_ops:
+                    st.markdown("#### 🔴 Critical")
+                    for i, op in enumerate(critical_ops):
+                        op_key = f"op_critical_{i}"
+                        with st.expander(f"{op.get('operation', 'Unknown')} ({op.get('affected_count', 0)} affected)", expanded=True):
+                            st.write(f"**Rationale**: {op.get('rationale', 'No description')}")
+                            st.write(f"**Affected**: {op.get('affected_count', 0)} entities")
+                            if op.get("auto_apply"):
+                                st.markdown('<span style="background-color: #28a745; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.8em;">⚡ Auto-Apply</span>', unsafe_allow_html=True)
+                            
+                            # Preview and Apply buttons
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("👁️ Preview", key=f"preview_{op_key}"):
+                                    preview_result = preview_operation(op, doc, msp)
+                                    if preview_result.get("success"):
+                                        st.success(f"✅ Preview: {preview_result.get('message', 'Operation ready')}")
+                                        st.write(f"Will affect: {preview_result.get('affected_count', 0)} entities")
+                                    else:
+                                        st.error(f"❌ Preview failed: {preview_result.get('error', 'Unknown error')}")
+                            with col2:
+                                if st.button("✅ Apply", key=f"apply_{op_key}", type="primary"):
+                                    apply_result = apply_operation(op, doc, msp)
+                                    if apply_result.get("success"):
+                                        st.success(f"✅ Applied: {apply_result.get('message', 'Operation completed')}")
+                                        # Clear analysis results to force re-analysis
+                                        st.session_state["analysis_results"] = None
+                                        safe_rerun()
+                                    else:
+                                        st.error(f"❌ Apply failed: {apply_result.get('error', 'Unknown error')}")
+                
+                # Errors
+                if error_ops:
+                    st.markdown("#### ⚠️ Errors")
+                    for i, op in enumerate(error_ops):
+                        op_key = f"op_error_{i}"
+                        with st.expander(f"{op.get('operation', 'Unknown')} ({op.get('affected_count', 0)} affected)"):
+                            st.write(f"**Rationale**: {op.get('rationale', 'No description')}")
+                            st.write(f"**Affected**: {op.get('affected_count', 0)} entities")
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("👁️ Preview", key=f"preview_{op_key}"):
+                                    preview_result = preview_operation(op, doc, msp)
+                                    if preview_result.get("success"):
+                                        st.success(f"✅ Preview: {preview_result.get('message', 'Operation ready')}")
+                                        st.write(f"Will affect: {preview_result.get('affected_count', 0)} entities")
+                                    else:
+                                        st.error(f"❌ Preview failed: {preview_result.get('error', 'Unknown error')}")
+                            with col2:
+                                if st.button("✅ Apply", key=f"apply_{op_key}", type="primary"):
+                                    apply_result = apply_operation(op, doc, msp)
+                                    if apply_result.get("success"):
+                                        st.success(f"✅ Applied: {apply_result.get('message', 'Operation completed')}")
+                                        st.session_state["analysis_results"] = None
+                                        safe_rerun()
+                                    else:
+                                        st.error(f"❌ Apply failed: {apply_result.get('error', 'Unknown error')}")
+                
+                # Warnings
+                if warning_ops:
+                    st.markdown("#### 🟡 Warnings")
+                    for i, op in enumerate(warning_ops):
+                        op_key = f"op_warning_{i}"
+                        with st.expander(f"{op.get('operation', 'Unknown')} ({op.get('affected_count', 0)} affected)"):
+                            st.write(f"**Rationale**: {op.get('rationale', 'No description')}")
+                            st.write(f"**Affected**: {op.get('affected_count', 0)} entities")
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("👁️ Preview", key=f"preview_{op_key}"):
+                                    preview_result = preview_operation(op, doc, msp)
+                                    if preview_result.get("success"):
+                                        st.success(f"✅ Preview: {preview_result.get('message', 'Operation ready')}")
+                                        st.write(f"Will affect: {preview_result.get('affected_count', 0)} entities")
+                                    else:
+                                        st.error(f"❌ Preview failed: {preview_result.get('error', 'Unknown error')}")
+                            with col2:
+                                if st.button("✅ Apply", key=f"apply_{op_key}"):
+                                    apply_result = apply_operation(op, doc, msp)
+                                    if apply_result.get("success"):
+                                        st.success(f"✅ Applied: {apply_result.get('message', 'Operation completed')}")
+                                        st.session_state["analysis_results"] = None
+                                        safe_rerun()
+                                    else:
+                                        st.error(f"❌ Apply failed: {apply_result.get('error', 'Unknown error')}")
+                
+                # Info
+                if info_ops:
+                    st.markdown("#### ℹ️ Suggestions")
+                    for i, op in enumerate(info_ops):
+                        op_key = f"op_info_{i}"
+                        with st.expander(f"{op.get('operation', 'Unknown')} ({op.get('affected_count', 0)} affected)"):
+                            st.write(f"**Rationale**: {op.get('rationale', 'No description')}")
+                            st.write(f"**Affected**: {op.get('affected_count', 0)} entities")
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("👁️ Preview", key=f"preview_{op_key}"):
+                                    preview_result = preview_operation(op, doc, msp)
+                                    if preview_result.get("success"):
+                                        st.success(f"✅ Preview: {preview_result.get('message', 'Operation ready')}")
+                                        st.write(f"Will affect: {preview_result.get('affected_count', 0)} entities")
+                                    else:
+                                        st.error(f"❌ Preview failed: {preview_result.get('error', 'Unknown error')}")
+                            with col2:
+                                if st.button("✅ Apply", key=f"apply_{op_key}"):
+                                    apply_result = apply_operation(op, doc, msp)
+                                    if apply_result.get("success"):
+                                        st.success(f"✅ Applied: {apply_result.get('message', 'Operation completed')}")
+                                        st.session_state["analysis_results"] = None
+                                        safe_rerun()
+                                    else:
+                                        st.error(f"❌ Apply failed: {apply_result.get('error', 'Unknown error')}")
+            else:
+                st.info("✅ No recommendations - DXF file looks good!")
+    else:
+        st.info("👆 Click 'Run Analysis' to analyze the current DXF file")
+
+
+def render_session_management():
+    """Render session management UI in sidebar."""
+    st.header("Session")
+    
+    session_path = st.session_state["state"]["session_path"]
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("💾 Save Session", key="save_session_btn"):
+            try:
+                save_session(session_path, st.session_state["state"])
+                st.success("Session saved.")
+            except Exception as e:
+                st.error(f"Failed to save session: {e}")
+    
+    with col2:
+        if st.button("📂 Load Session", key="load_session_btn"):
+            try:
+                loaded = load_session(session_path)
+                st.session_state["state"] = loaded
+                st.success("Session loaded.")
+                safe_rerun()
+            except Exception as e:
+                st.error(f"Failed to load session: {e}")
+
+
+# ============================================================================
+# Main Application
+# ============================================================================
 
 def main():
-    st.title("DXF Editor")
-    st.markdown("Upload a DXF, visualize, edit layers/groups, transform, draw, measure, validate, and download the edited file.")
-
-    uploaded = st.file_uploader("Upload DXF File", type=["dxf"])
-
-    if uploaded:
-        doc = load_dxf(uploaded)
-        msp = doc.modelspace()
-        # Supported primitives used for direct editing tools
-        entities = [e for e in msp.query("LINE CIRCLE LWPOLYLINE")] 
-        # Also count all entities for visibility
-        try:
-            total_all = sum(1 for _ in msp)
-        except Exception:
-            total_all = len(entities)
-        st.write(f"Total Entities (all): {total_all} · Supported for direct edit: {len(entities)}")
-        if "state" not in st.session_state:
-            st.session_state["state"] = {"selected": [], "hidden_layers": [], "session_path": "session.json"}
-
+    """Main DXF Editor application."""
+    st.set_page_config(page_title="DXF Editor", layout="wide", page_icon="📐")
+    
+    st.title("📐 DXF Editor")
+    st.markdown("""
+    Upload a DXF file to visualize, edit layers/groups, transform, draw, measure, validate, 
+    and download the edited file.
+    """)
+    
+    # Initialize session state
+    initialize_session_state()
+    
+    # File upload
+    uploaded = st.file_uploader("Upload DXF File", type=["dxf"], help="Select a DXF file to edit")
+    
+    if not uploaded:
+        st.info("👆 Please upload a DXF file to get started")
+        return
+    
+    # Load DXF document
+    try:
+        with st.spinner("Loading DXF file..."):
+            doc = load_dxf(uploaded)
+            msp = doc.modelspace()
+    except Exception as e:
+        st.error(f"Failed to load DXF file: {e}")
+        if st.checkbox("Show detailed error", key="show_load_error"):
+            import traceback
+            st.code(traceback.format_exc())
+        return
+    
+    # Get entities - support LINE, CIRCLE, LWPOLYLINE, ARC, POLYLINE, SPLINE
+    entities = []
+    for e in msp:
+        if e.dxftype() in ["LINE", "CIRCLE", "LWPOLYLINE", "ARC", "POLYLINE", "SPLINE"]:
+            entities.append(e)
+    
+    try:
+        total_all = sum(1 for _ in msp)
+    except Exception:
+        total_all = len(entities)
+    
+    # Display entity count
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Entities", total_all)
+    with col2:
+        st.metric("Supported Entities", len(entities))
+    with col3:
+        st.metric("Selected", len(st.session_state["state"]["selected"]))
+    
+    # Main layout: sidebar + main content
+    # Always show sidebar with analysis (works on DXF file, not just entities)
+    with st.sidebar:
+        # Analysis section - always available
+        render_analysis_and_recommendations(doc, msp, entities)
+        st.divider()
+        
         if len(entities) == 0:
-            # Display warning in red
-            st.markdown("""
-            <div style="background-color: #FFEBEE; border-left: 4px solid #F44336; padding: 10px; margin: 10px 0; border-radius: 4px;">
-                <p style="color: #C62828; font-weight: 500; margin: 0;">⚠️ <strong>Warning:</strong> No supported entities (LINE, CIRCLE, LWPOLYLINE) found. Showing polygonized preview for reference.</p>
-            </div>
-            """, unsafe_allow_html=True)
-            # Enhanced fallback preview with normalization and layer coloring
-            try:
-                from wjp_analyser.nesting.dxf_extractor import extract_polygons
-                from wjp_analyser.dxf_editor.preview_utils import (
-                    normalize_to_origin,
-                    classify_polygon_layers,
-                    get_layer_color,
-                    convert_hex_to_rgb
-                )
-                import matplotlib.pyplot as plt
-                
-                # Save to temp and extract
-                temp_dir = Path("output") / "editor_preview"
-                temp_dir.mkdir(parents=True, exist_ok=True)
-                temp_path = temp_dir / "preview_src.dxf"
-                save_dxf(doc, str(temp_path))
-                polys = extract_polygons(str(temp_path))
-                
-                if polys:
-                    # Classify polygons into layers
-                    classified = classify_polygon_layers(polys)
-                    
-                    # Normalize all polygons to origin (0,0)
-                    # First, find the bounding box of all polygons
-                    all_points = []
-                    for p in polys:
-                        pts = p.get("points", [])
-                        if len(pts) >= 3:
-                            all_points.extend(pts)
-                    
-                    if all_points:
-                        min_x = min(p[0] for p in all_points)
-                        min_y = min(p[1] for p in all_points)
-                        offset = (min_x, min_y)
-                        
-                        # Create figure with normalized coordinates
-                        fig, ax = plt.subplots(figsize=(10, 8))
-                        
-                        # Render polygons with layer-based colors
-                        # Render OUTER first (background), then others on top
-                        layer_order = ["OUTER", "INNER", "HOLE", "COMPLEX", "DECOR"]
-                        for layer_name in layer_order:
-                            layer_polys = classified.get(layer_name, [])
-                            if not layer_polys:
-                                continue
-                            
-                            color_info = get_layer_color(layer_name)
-                            fill_color = convert_hex_to_rgb(color_info["fill"])
-                            edge_color = convert_hex_to_rgb(color_info["edge"])
-                            alpha = color_info["alpha"]
-                            
-                            # Render each polygon in this layer with normalization
-                            for poly_data in layer_polys:
-                                original_points = poly_data.get("points", [])
-                                if len(original_points) < 3:
-                                    continue
-                                
-                                # Normalize this polygon's points
-                                norm_pts = [(x - min_x, y - min_y) for x, y in original_points]
-                                
-                                # Ensure polygon is closed for proper rendering
-                                if norm_pts[0] != norm_pts[-1]:
-                                    norm_pts.append(norm_pts[0])
-                                
-                                xs = [x for x, y in norm_pts]
-                                ys = [y for x, y in norm_pts]
-                                
-                                # Render with appropriate z-order (OUTER first as background)
-                                z_order = 1 if layer_name == "OUTER" else 2
-                                ax.fill(xs, ys, color=fill_color, alpha=alpha, 
-                                       edgecolor=edge_color, linewidth=0.8, zorder=z_order)
-                        
-                        # Set up axes
-                        ax.set_aspect('equal')
-                        ax.grid(True, alpha=0.3, linestyle='--')
-                        ax.set_title("DXF Preview (Normalized to Origin)", fontsize=14, fontweight='bold')
-                        ax.set_xlabel('X (mm)', fontsize=12)
-                        ax.set_ylabel('Y (mm)', fontsize=12)
-                        
-                        # Add legend
-                        from matplotlib.patches import Patch
-                        legend_elements = []
-                        for layer_name in ["OUTER", "INNER"]:
-                            if classified.get(layer_name):
-                                color_info = get_layer_color(layer_name)
-                                fill_color = convert_hex_to_rgb(color_info["fill"])
-                                count = len(classified[layer_name])
-                                legend_elements.append(
-                                    Patch(facecolor=fill_color, edgecolor=convert_hex_to_rgb(color_info["edge"]),
-                                         label=f"{layer_name} ({count})")
-                                )
-                        if legend_elements:
-                            ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
-                        
-                        st.pyplot(fig, use_container_width=True)
-                        plt.close(fig)
-                    else:
-                        st.info("No valid polygons detected in this DXF.")
-                else:
-                    st.info("No closed polygons detected in this DXF.")
-            except Exception as ex:
-                import traceback
-                st.error(f"Preview extraction unavailable: {ex}")
-                st.code(traceback.format_exc())
+            # No supported entities - show limited sidebar
+            st.info("⚠️ No supported entities found. Analysis still available above.")
         else:
-            with st.sidebar:
-                st.header("Layers")
-                try:
-                    layer_names = list(dxf_mod.get_layers(doc).keys())
-                except Exception:
-                    # Fallback: minimal safe enumeration
-                    try:
-                        layer_names = [getattr(e.dxf, "name", getattr(e, "name", "0")) for e in doc.layers]
-                    except Exception:
-                        layer_names = ["0"]
-                new_layer = st.text_input("Create Layer", value="WJP_NEW")
-                if st.button("Add Layer"):
-                    ensure_layer(doc, new_layer, color=7)
-                    st.success(f"Layer '{new_layer}' ensured.")
-                layer_pick = st.selectbox("Pick Layer", options=layer_names if layer_names else ["0"])
-                new_name = st.text_input("Rename Layer To", value=layer_pick)
-                if st.button("Rename Layer"):
-                    rename_layer(doc, layer_pick, new_name)
-                    st.success(f"Renamed layer {layer_pick} → {new_name}")
-                new_color = st.number_input("ACI Color (1-255)", value=7, min_value=1, max_value=255, step=1)
-                if st.button("Recolor Layer"):
-                    recolor_layer(doc, layer_pick, new_color)
-                    st.success(f"Layer {layer_pick} recolored to {new_color}")
-
-                st.subheader("Layer Visibility")
-                vis_multi = st.multiselect("Hidden Layers", options=layer_names, default=st.session_state["state"]["hidden_layers"]) 
-                st.session_state["state"]["hidden_layers"] = vis_multi
-
-                st.header("Groups")
-                st.write("Existing:", list_groups(doc))
-                grp_name = st.text_input("New Group Name", value="group_1")
-                if st.button("Group Selection"):
-                    sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
-                    create_group(doc, grp_name, [e.dxf.handle for e in sel])
-                    st.success(f"Created group '{grp_name}' with {len(sel)} entities")
-
-                st.header("Selection")
-                st.write("Selected handles:", st.session_state["state"]["selected"])
-                x = st.number_input("Pick X", value=0.0)
-                y = st.number_input("Pick Y", value=0.0)
-                tol = st.number_input("Pick Tolerance", value=2.0)
-                if st.button("Pick @ (X,Y)"):
-                    picked = pick_entity(entities, x, y, tol)
-                    if picked and picked.dxf.handle not in st.session_state["state"]["selected"]:
-                        st.session_state["state"]["selected"].append(picked.dxf.handle)
-                        st.success(f"Selected {picked.dxftype()} on layer {picked.dxf.layer} handle {picked.dxf.handle}")
-                    elif not picked:
-                        st.warning("No entity near that point.")
-                if st.button("Clear Selection"):
-                    st.session_state["state"]["selected"] = []
-
-                st.subheader("Move Selected to Layer")
-                move_to = st.text_input("Target Layer", value="OUTER")
-                if st.button("Move to Layer"):
-                    ensure_layer(doc, move_to, color=7)
-                    sel = [e for e in entities if e.dxf.handle in st.session_state["state"]["selected"]]
-                    move_entities_to_layer(sel, move_to)
-                    st.success(f"Moved {len(sel)} entities to layer '{move_to}'")
-
-                st.header("Session")
-                if st.button("Save Session State"):
-                    save_session(st.session_state["state"]["session_path"], st.session_state["state"])
-                    st.success("Session saved.")
-                if st.button("Load Session State"):
-                    st.session_state["state"] = load_session(st.session_state["state"]["session_path"])
-                    st.success("Session loaded.")
-
-            # Enhanced preview with normalization and layer-based coloring
-            # Note: Entity-based preview uses DXF layer names for coloring
-            # (Polygonized preview uses geometric classification for more accurate OUTER/INNER detection)
-            
-            # Build warning markers from AI analysis if available
-            warning_markers = {}
-            if st.session_state.get("_editor_ai_analysis") and st.session_state.get("_editor_analysis_report"):
-                ai_analysis = st.session_state.get("_editor_ai_analysis")
-                report = st.session_state.get("_editor_analysis_report")
-                
-                # Get enabled warnings
-                enabled_warnings = {}
-                if "editor_recommendations" in st.session_state:
-                    for w_type, w_data in st.session_state["editor_recommendations"].get("warnings", {}).items():
-                        if w_data.get("enabled", True):
-                            enabled_warnings[w_type] = w_data.get("data", {})
-                
-                # Map component IDs to entity handles via handle attribute
-                components = report.get("components", [])
-                for comp in components:
-                    comp_id = comp.get("id")
-                    handle = comp.get("handle")
-                    comp_warnings = []
-                    
-                    # Check warning conditions
-                    if comp.get("area", 0) == 0 and "zero_area" in enabled_warnings:
-                        comp_warnings.append("zero_area")
-                    area = comp.get("area", 0)
-                    if 0 < area < 1.0 and "too_many_tiny" in enabled_warnings:
-                        comp_warnings.append("too_many_tiny")
-                    
-                    if comp_warnings and handle:
-                        warning_markers[handle] = comp_warnings
-            
+            # Has supported entities - show full editor tools
+            render_layer_management(doc, get_layer_names(doc))
+            st.divider()
+            render_group_management(doc, entities)
+            st.divider()
+            render_selection_tools(doc, entities)
+            st.divider()
+            render_transform_tools(doc, msp, entities)
+            st.divider()
+            render_drawing_tools(doc, msp)
+            st.divider()
+            render_measurement_tools(entities)
+            st.divider()
+            render_validation_tools(entities)
+            st.divider()
+        
+        # Session management - always available
+        render_session_management()
+    
+    # Main content area
+    if len(entities) == 0:
+        # No supported entities - show fallback preview
+        render_fallback_preview(doc, save_dxf)
+    else:
+        
+        # Main preview area
+        st.subheader("Preview")
+        
+        # Build warning markers
+        warning_markers = build_warning_markers()
+        
+        # Render preview
+        try:
             fig = plot_entities(
                 entities,
                 selected_handles=st.session_state["state"]["selected"],
                 hidden_layers=st.session_state["state"]["hidden_layers"],
                 color_by_layer=True,
-                normalize_to_origin=True,  # Normalize to origin (0,0)
+                normalize_to_origin=True,
                 warning_markers=warning_markers if warning_markers else None,
             )
+            
+            # Check if plot is empty
+            if fig and len(fig.axes) > 0:
+                ax = fig.axes[0]
+                # Check if there are any lines/patches in the plot
+                has_content = len(ax.lines) > 0 or len(ax.patches) > 0 or len(ax.collections) > 0
+                if not has_content:
+                    st.warning("⚠️ Entities found but preview is empty. This may indicate coordinate extraction issues. Trying fallback preview...")
+                    # Try fallback preview
+                    try:
+                        render_fallback_preview(doc, save_dxf)
+                    except Exception as fallback_error:
+                        st.error(f"Fallback preview also failed: {fallback_error}")
+            
             st.pyplot(fig, use_container_width=True)
-
-        # Analysis and Object Table (moved from Analyzer)
-        with st.expander("Analysis and Object Table", expanded=False):
+            plt.close(fig)
+        except Exception as e:
+            st.error(f"Failed to render preview: {e}")
+            st.info("Attempting fallback polygonized preview...")
             try:
-                from wjp_analyser.web.api_client_wrapper import analyze_dxf as api_analyze_dxf
-                import pandas as pd
-                # Persist current doc to a temp path
-                tmp_dir = Path("output") / "editor_analysis"
-                tmp_dir.mkdir(parents=True, exist_ok=True)
-                tmp_path = tmp_dir / f"editor_tmp_{int(time.time())}.dxf"
-                save_dxf(doc, str(tmp_path))
-                report = api_analyze_dxf(str(tmp_path))
-                comps: List[Dict[str, Any]] = report.get("components", []) or []
-                rows = []
-                for c in comps:
-                    rows.append({
-                        "ID": c.get("id"),
-                        "Layer": c.get("layer", "0"),
-                        "Group": c.get("group", "Ungrouped"),
-                        "Area_mm2": float(c.get("area", 0.0)),
-                        "Perimeter_mm": float(c.get("perimeter", 0.0)),
-                        "Selected": True,
-                    })
-                if rows:
-                    df = pd.DataFrame(rows)
-                    # Normalize dtypes and defaults to avoid ambiguous truth errors
-                    try:
-                        df["ID"] = df["ID"].astype(str)
-                        df["Layer"] = df["Layer"].astype(str)
-                        df["Group"] = df["Group"].fillna("Ungrouped").astype(str)
-                        df["Area_mm2"] = pd.to_numeric(df["Area_mm2"], errors="coerce").fillna(0.0)
-                        df["Perimeter_mm"] = pd.to_numeric(df["Perimeter_mm"], errors="coerce").fillna(0.0)
-                        if "Selected" not in df.columns:
-                            df["Selected"] = True
-                        df["Selected"] = df["Selected"].fillna(False).astype(bool)
-                    except Exception:
-                        pass
-                    st.markdown("**Objects (editable selection & layer)**")
-
-                    # Filters: Layer and Group
-                    try:
-                        layer_options = sorted(df["Layer"].astype(str).unique().tolist())
-                        group_options = sorted(df["Group"].astype(str).unique().tolist())
-                    except Exception:
-                        layer_options, group_options = [], []
-
-                    fc1, fc2, fc3 = st.columns([2, 2, 2])
-                    with fc1:
-                        layer_filter = st.multiselect("Filter: Layer", options=layer_options, default=layer_options)
-                    with fc2:
-                        group_filter = st.multiselect("Filter: Group", options=group_options, default=group_options)
-                    with fc3:
-                        st.caption("Use filters to limit the table view. Actions apply to filtered rows.")
-
-                    # Apply filters to table view
-                    try:
-                        vdf = df[(df["Layer"].isin(layer_filter)) & (df["Group"].isin(group_filter))].copy()
-                    except Exception:
-                        vdf = df.copy()
-
-                    # Quick selection actions and soft refresh
-                    ac1, ac2, ac3 = st.columns([2, 2, 2])
-                    with ac1:
-                        if st.button("Select Current Filter"):
-                            try:
-                                table = st.session_state.get("editor_objects_df", df).copy()
-                                table["ID"] = table["ID"].astype(str)
-                                sel_ids = set(vdf["ID"].astype(str).tolist())
-                                table.loc[table["ID"].isin(sel_ids), "Selected"] = True
-                                st.session_state["editor_objects_df"] = table
-                                st.success(f"Selected {len(sel_ids)} rows in current filter.")
-                            except Exception as ex:
-                                st.error(f"Could not select rows: {ex}")
-                    with ac2:
-                        if st.button("Select None"):
-                            try:
-                                table = st.session_state.get("editor_objects_df", df).copy()
-                                table["ID"] = table["ID"].astype(str)
-                                sel_ids = set(vdf["ID"].astype(str).tolist())
-                                table.loc[table["ID"].isin(sel_ids), "Selected"] = False
-                                st.session_state["editor_objects_df"] = table
-                                st.success("Deselected current filter.")
-                            except Exception as ex:
-                                st.error(f"Could not deselect rows: {ex}")
-                    with ac3:
-                        if st.button("Reanalyze (soft refresh)"):
-                            try:
-                                # Re-run analysis and rebuild table, preserving user edits by ID
-                                new_report = api_analyze_dxf(str(tmp_path))
-                                new_comps = new_report.get("components", []) or []
-                                new_rows = []
-                                for c in new_comps:
-                                    new_rows.append({
-                                        "ID": str(c.get("id")),
-                                        "Layer": str(c.get("layer", "0")),
-                                        "Group": str(c.get("group", "Ungrouped")),
-                                        "Area_mm2": float(c.get("area", 0.0)),
-                                        "Perimeter_mm": float(c.get("perimeter", 0.0)),
-                                        "Selected": True,
-                                    })
-                                if new_rows:
-                                    new_df = pd.DataFrame(new_rows)
-                                    # Merge user edits
-                                    old = st.session_state.get("editor_objects_df", df).copy()
-                                    old["ID"] = old["ID"].astype(str)
-                                    new_df["ID"] = new_df["ID"].astype(str)
-                                    merged = new_df.set_index("ID").combine_first(
-                                        old.set_index("ID")
-                                    ).reset_index()
-                                    # Normalize dtypes
-                                    merged["Selected"] = merged["Selected"].fillna(False).astype(bool)
-                                    merged["Layer"] = merged["Layer"].astype(str)
-                                    merged["Group"] = merged["Group"].fillna("Ungrouped").astype(str)
-                                    st.session_state["editor_objects_df"] = merged
-                                    st.success("Reanalysis complete and table refreshed (preserved user edits).")
-                                else:
-                                    st.info("Reanalysis produced no components.")
-                            except Exception as ex:
-                                st.error(f"Soft refresh failed: {ex}")
-
-                    # Show editable table for filtered view
-                    edited = st.data_editor(
-                        vdf,
-                        use_container_width=True,
-                        num_rows="dynamic",
-                    )
-                    # Persist normalized, edited DataFrame
-                    try:
-                        ed = edited.copy()  # this is filtered view
-                        ed["ID"] = ed["ID"].astype(str)
-                        ed["Layer"] = ed["Layer"].astype(str)
-                        ed["Group"] = ed["Group"].fillna("Ungrouped").astype(str)
-                        if "Selected" not in ed.columns:
-                            ed["Selected"] = True
-                        ed["Selected"] = ed["Selected"].fillna(False).astype(bool)
-                        # Merge edited filtered rows back into full table
-                        full = st.session_state.get("editor_objects_df", df).copy()
-                        full["ID"] = full["ID"].astype(str)
-                        full_indexed = full.set_index("ID")
-                        ed_indexed = ed.set_index("ID")
-                        full_indexed.update(ed_indexed)
-                        st.session_state["editor_objects_df"] = full_indexed.reset_index()
-                    except Exception:
-                        st.session_state["editor_objects_df"] = edited
-                    # Apply edited layers back to DXF by handle (ID)
-                    c_apply1, c_apply2 = st.columns([1, 1])
-                    with c_apply1:
-                        if st.button("Apply Layer Changes", help="Writes layer values for selected rows back to DXF"):
-                            try:
-                                table = st.session_state.get("editor_objects_df", edited).copy()
-                                if table.empty:
-                                    st.warning("No rows available to apply.")
-                                else:
-                                    table["Selected"] = table["Selected"].fillna(False).astype(bool)
-                                    table["ID"] = table["ID"].astype(str)
-                                    table["Layer"] = table["Layer"].astype(str)
-                                    # Build handle -> entity map
-                                    handle_to_entity = {}
-                                    for e in entities:
-                                        try:
-                                            h = getattr(e.dxf, "handle", None)
-                                            if h:
-                                                handle_to_entity[str(h)] = e
-                                        except Exception:
-                                            continue
-                                    changed = 0
-                                    for _, row in table.iterrows():
-                                        try:
-                                            if not bool(row.get("Selected", False)):
-                                                continue
-                                            handle = str(row.get("ID"))
-                                            target_layer = str(row.get("Layer", "0"))
-                                            ent = handle_to_entity.get(handle)
-                                            if ent is not None:
-                                                ensure_layer(doc, target_layer, color=7)
-                                                try:
-                                                    ent.dxf.layer = target_layer
-                                                    changed += 1
-                                                except Exception:
-                                                    pass
-                                        except Exception:
-                                            continue
-                                    st.success(f"Applied layer changes to {changed} entities. Use Save DXF below to persist.")
-                            except Exception as ex:
-                                st.error(f"Failed to apply changes: {ex}")
-                    with c_apply2:
-                        if st.button("Select Handles in View", help="Highlights selected rows in the current plot"):
-                            try:
-                                table = st.session_state.get("editor_objects_df", edited).copy()
-                                if table.empty:
-                                    st.warning("No rows available to select.")
-                                else:
-                                    table["Selected"] = table["Selected"].fillna(False).astype(bool)
-                                    table["ID"] = table["ID"].astype(str)
-                                    sel_handles = [str(r["ID"]) for _, r in table.iterrows() if bool(r.get("Selected", False))]
-                                    st.session_state["state"]["selected"] = sel_handles
-                                    st.success(f"Selected {len(sel_handles)} entities in view.")
-                            except Exception as ex:
-                                st.error(f"Could not update selection: {ex}")
-                else:
-                    st.info("No components detected by analyzer.")
-            except Exception as e:
-                st.warning(f"Analysis unavailable: {e}")
-
-        # Transforms and Draw tools intentionally removed per updated workflow.
-
-        # Helper functions for AI analysis (defined before use)
-        def _calculate_readiness_score(ai_analysis: Dict[str, Any]) -> Dict[str, Any]:
-            """Calculate readiness score based on analysis."""
-            stats = ai_analysis.get("statistics", {})
-            recs = ai_analysis.get("recommendations", {})
-            
-            score = 100.0
-            total_objects = stats.get("total_objects", 1)
-            
-            # Penalties
-            zero_area = stats.get("area_distribution", {}).get("zero", 0)
-            tiny_area = stats.get("area_distribution", {}).get("tiny_lt1", 0)
-            tiny_perim = stats.get("perimeter_distribution", {}).get("tiny_lt5", 0)
-            
-            # Deduct points
-            if total_objects > 0:
-                zero_pct = (zero_area / total_objects) * 100
-                tiny_pct = (tiny_area / total_objects) * 100
-                tiny_perim_pct = (tiny_perim / total_objects) * 100
-                
-                score -= min(30, zero_pct * 0.3)  # Max 30 points for zero area
-                score -= min(25, tiny_pct * 0.25)  # Max 25 points for tiny area
-                score -= min(20, tiny_perim_pct * 0.2)  # Max 20 points for tiny perimeter
-            
-            score = max(0, min(100, score))
-            
-            # Determine level
-            if score >= 80:
-                level = "excellent"
-            elif score >= 60:
-                level = "good"
-            elif score >= 40:
-                level = "fair"
-            else:
-                level = "poor"
-            
-            return {"score": score, "level": level}
-        
-        def _apply_fix_zero_area(doc, report):
-            """Remove zero-area objects from DXF."""
-            components = report.get("components", [])
-            zero_area_handles = []
-            for comp in components:
-                if comp.get("area", 0) == 0:
-                    handle = comp.get("id")
-                    if handle:
-                        zero_area_handles.append(handle)
-            
-            msp = doc.modelspace()
-            removed = 0
-            for entity in list(msp):
-                try:
-                    if entity.dxf.handle in zero_area_handles:
-                        msp.delete_entity(entity)
-                        removed += 1
-                except Exception:
-                    pass
-            return removed
-        
-        def _apply_fix_tiny_objects(doc, report):
-            """Remove tiny objects (< 1 mm²) from DXF."""
-            components = report.get("components", [])
-            tiny_handles = []
-            for comp in components:
-                area = comp.get("area", 0)
-                if 0 < area < 1.0:
-                    handle = comp.get("id")
-                    if handle:
-                        tiny_handles.append(handle)
-            
-            msp = doc.modelspace()
-            removed = 0
-            for entity in list(msp):
-                try:
-                    if entity.dxf.handle in tiny_handles:
-                        msp.delete_entity(entity)
-                        removed += 1
-                except Exception:
-                    pass
-            return removed
-        
-        def _create_enhanced_csv_with_recommendations(
-            base_csv_path: str,
-            ai_analysis: Dict[str, Any],
-            readiness_score: Dict[str, Any],
-            recommendations_state: Dict[str, Any]
-        ) -> str:
-            """Create enhanced CSV with component data + recommendation selections."""
-            import csv
-            
-            # Read base CSV
-            components_df = pd.read_csv(base_csv_path)
-            
-            # Create enhanced CSV path
-            base_path = Path(base_csv_path)
-            enhanced_path = base_path.parent / f"enhanced_{base_path.name}"
-            
-            # Write enhanced CSV with multiple sections
-            with open(enhanced_path, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                
-                # Section 1: Summary and Readiness Score
-                writer.writerow(["=== DXF ANALYSIS REPORT ==="])
-                writer.writerow([])
-                writer.writerow(["READINESS SCORE"])
-                writer.writerow(["Score", f"{readiness_score['score']:.0f}/100"])
-                writer.writerow(["Level", readiness_score['level'].upper()])
-                writer.writerow([])
-                
-                stats = ai_analysis.get("statistics", {})
-                writer.writerow(["SUMMARY STATISTICS"])
-                writer.writerow(["Total Objects", stats.get("total_objects", 0)])
-                writer.writerow(["Operable Objects", stats.get("operable_objects", 0)])
-                writer.writerow(["Total Area (mm²)", f"{stats.get('total_area_mm2', 0):,.2f}"])
-                writer.writerow(["Total Perimeter (m)", f"{stats.get('total_perimeter_mm', 0) / 1000:.2f}"])
-                writer.writerow(["Waterjet Viability", ai_analysis.get("recommendations", {}).get("viability_score", "unknown").upper()])
-                writer.writerow([])
-                
-                # Section 2: Recommendation Selections
-                writer.writerow(["=== RECOMMENDATION SELECTIONS ==="])
-                writer.writerow([])
-                writer.writerow(["Type", "Status", "Count", "Message", "Action"])
-                
-                warnings_state = recommendations_state.get("warnings", {})
-                for w_type, w_data in warnings_state.items():
-                    enabled = "ENABLED" if w_data.get("enabled", True) else "DISABLED"
-                    warning = w_data.get("data", {})
-                    writer.writerow([
-                        warning.get("type", w_type),
-                        enabled,
-                        warning.get("count", 0),
-                        warning.get("message", ""),
-                        warning.get("action", "")
-                    ])
-                
-                info_state = recommendations_state.get("info", {})
-                for i_type, i_data in info_state.items():
-                    enabled = "ENABLED" if i_data.get("enabled", True) else "DISABLED"
-                    info_item = i_data.get("data", {})
-                    writer.writerow([
-                        info_item.get("type", i_type),
-                        enabled,
-                        "-",
-                        info_item.get("message", ""),
-                        info_item.get("action", "")
-                    ])
-                
-                writer.writerow([])
-                writer.writerow(["=== COMPONENT DATA ==="])
-                writer.writerow([])
-                
-                # Section 3: Component Data
-                # Write headers
-                writer.writerow(list(components_df.columns))
-                # Write component rows
-                for _, row in components_df.iterrows():
-                    writer.writerow(row.tolist())
-            
-            return str(enhanced_path)
-
-        # AI Analysis and Recommendations with Preview and Readiness Score
-        st.markdown("## 🤖 AI Analysis & Recommendations")
-        with st.expander("Run AI Analysis and Get Recommendations", expanded=True):
+                render_fallback_preview(doc, save_dxf)
+            except Exception as fallback_error:
+                st.error(f"Fallback preview also failed: {fallback_error}")
+            if st.checkbox("Show detailed error", key="show_preview_render_error"):
+                import traceback
+                st.code(traceback.format_exc())
+    
+    # Transform, Draw, Measure, Validate sections are in sidebar
+    # Additional sections (Analysis, AI Analysis, etc.) would go here
+    
+    # Save/Export section
+    st.divider()
+    st.subheader("💾 Save / Export")
+    
+    default_filename = f"edited_output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.dxf"
+    out_path = st.text_input("Save as", value=str(OUTPUT_DIR / default_filename), key="save_path_input")
+    
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if st.button("💾 Save DXF", type="primary", key="save_dxf_btn"):
             try:
-                from wjp_analyser.web.api_client_wrapper import (
-                    analyze_dxf as api_analyze_dxf,
-                    export_components_csv,
-                    analyze_csv,
-                )
-                from wjp_analyser.nesting.dxf_extractor import extract_polygons
-                import pandas as pd
-                import matplotlib.pyplot as plt
-                from datetime import datetime
+                save_dxf(doc, out_path)
+                st.success(f"DXF saved to: {out_path}")
                 
-                # Persist current doc for analysis
-                analysis_dir = Path("output") / "editor_ai_analysis"
-                analysis_dir.mkdir(parents=True, exist_ok=True)
-                analysis_dxf_path = analysis_dir / f"editor_analysis_{int(time.time())}.dxf"
-                save_dxf(doc, str(analysis_dxf_path))
-                
-                if st.button("🔍 Run AI Analysis", type="primary", key="btn_run_editor_ai"):
-                    with st.spinner("Running AI analysis..."):
-                        # Run analysis via API wrapper
-                        report = api_analyze_dxf(str(analysis_dxf_path))
-                        
-                        # Export CSV for AI analysis
-                        csv_dir = analysis_dir / "csv_exports"
-                        csv_dir.mkdir(parents=True, exist_ok=True)
-                        timestamp = datetime.now().strftime("%Y-%m-%dT%H-%M")
-                        csv_path = str(csv_dir / f"{timestamp}_editor_analysis.csv")
-                        export_components_csv(report, csv_path)
-                        
-                        # Run AI analysis via API wrapper
-                        ai_analysis = analyze_csv(csv_path, report=report)
-                        
-                        # Store in session state (using different keys to avoid widget conflicts)
-                        st.session_state["_editor_ai_analysis"] = ai_analysis
-                        st.session_state["_editor_analysis_report"] = report
-                        st.session_state["_editor_analysis_csv"] = csv_path
-                        st.success("AI Analysis completed!")
-                
-                # Display results if available
-                if st.session_state.get("_editor_ai_analysis") and st.session_state.get("_editor_analysis_report"):
-                    ai_analysis = st.session_state.get("_editor_ai_analysis")
-                    report = st.session_state.get("_editor_analysis_report")
-                    
-                    if ai_analysis.get("success"):
-                        stats = ai_analysis.get("statistics", {})
-                        recs = ai_analysis.get("recommendations", {})
-                        viability = recs.get("viability_score", "unknown")
-                        
-                        # Readiness Score Display
-                        st.markdown("### 📊 Readiness Score")
-                        readiness_score = _calculate_readiness_score(ai_analysis)
-                        score_color = {
-                            "excellent": "🟢",
-                            "good": "🟡", 
-                            "fair": "🟠",
-                            "poor": "🔴"
-                        }.get(readiness_score["level"], "⚪")
-                        
-                        col1, col2, col3 = st.columns([2, 2, 2])
-                        with col1:
-                            st.metric("Readiness Score", f"{readiness_score['score']:.0f}/100", f"{score_color} {readiness_score['level'].upper()}")
-                        with col2:
-                            st.metric("Operable Objects", stats.get("operable_objects", 0), f"of {stats.get('total_objects', 0)}")
-                        with col3:
-                            st.metric("Waterjet Viability", viability.upper(), f"{'✅ Ready' if viability == 'good' else '⚠️ Review' if viability == 'fair' else '❌ Issues'}")
-                        
-                        # Preview with warning markers
-                        st.markdown("### 📊 Preview")
-                        preview_tab1, preview_tab2 = st.tabs(["Current State", "Statistics"])
-                        
-                        with preview_tab1:
-                            try:
-                                polys = extract_polygons(str(analysis_dxf_path))
-                                if polys:
-                                    fig, ax = plt.subplots(figsize=(10, 8))
-                                    all_points = []
-                                    
-                                    # Get enabled warnings to show on preview
-                                    enabled_warnings = {}
-                                    if "editor_recommendations" in st.session_state:
-                                        for w_type, w_data in st.session_state["editor_recommendations"].get("warnings", {}).items():
-                                            if w_data.get("enabled", True):
-                                                enabled_warnings[w_type] = w_data.get("data", {})
-                                    
-                                    # Map warnings to components by matching criteria
-                                    components = report.get("components", [])
-                                    warning_locations = {}  # component_id -> list of warning types
-                                    
-                                    for comp in components:
-                                        comp_id = comp.get("id")
-                                        comp_warnings = []
-                                        
-                                        # Check for zero area
-                                        if comp.get("area", 0) == 0 and "zero_area" in enabled_warnings:
-                                            comp_warnings.append("zero_area")
-                                        
-                                        # Check for tiny objects
-                                        area = comp.get("area", 0)
-                                        if 0 < area < 1.0 and "too_many_tiny" in enabled_warnings:
-                                            comp_warnings.append("too_many_tiny")
-                                        
-                                        # Check for other warning conditions as needed
-                                        if comp_warnings:
-                                            warning_locations[comp_id] = comp_warnings
-                                    
-                                    for p in polys:
-                                        pts = p.get("points") or []
-                                        if len(pts) >= 3:
-                                            all_points.extend(pts)
-                                    
-                                    if all_points:
-                                        xs = [p[0] for p in all_points]
-                                        ys = [p[1] for p in all_points]
-                                        minx, maxx = min(xs), max(xs)
-                                        miny, maxy = min(ys), max(ys)
-                                        
-                                        # Normalize to origin and render polygons
-                                        for idx, p in enumerate(polys):
-                                            pts = p.get("points") or []
-                                            if len(pts) >= 3:
-                                                norm_pts = [(x - minx, y - miny) for (x, y) in pts]
-                                                xs_norm = [x for x, y in norm_pts]
-                                                ys_norm = [y for x, y in norm_pts]
-                                                
-                                                # Check if this polygon has warnings
-                                                has_warning = False
-                                                for comp in components:
-                                                    # Try to match polygon to component (simple matching by index or area)
-                                                    if idx < len(components):
-                                                        comp_id = components[idx].get("id")
-                                                        if comp_id in warning_locations:
-                                                            has_warning = True
-                                                            break
-                                                
-                                                if has_warning:
-                                                    # Highlight with red border
-                                                    ax.fill(xs_norm, ys_norm, alpha=0.2, edgecolor='#F44336', 
-                                                           linewidth=2.0, facecolor='#FFEBEE')
-                                                else:
-                                                    ax.fill(xs_norm, ys_norm, alpha=0.3, edgecolor='k', linewidth=0.5)
-                                        
-                                        # Add warning markers at problem locations
-                                        if warning_locations:
-                                            for comp in components:
-                                                comp_id = comp.get("id")
-                                                if comp_id in warning_locations:
-                                                    # Get component center for marker placement
-                                                    comp_points = comp.get("points", [])
-                                                    if comp_points and len(comp_points) > 0:
-                                                        # Calculate centroid
-                                                        center_x = sum(p[0] for p in comp_points) / len(comp_points)
-                                                        center_y = sum(p[1] for p in comp_points) / len(comp_points)
-                                                        # Normalize
-                                                        norm_x = center_x - minx
-                                                        norm_y = center_y - miny
-                                                        # Draw warning marker
-                                                        ax.plot(norm_x, norm_y, 'ro', markersize=12, 
-                                                               markeredgecolor='#C62828', markeredgewidth=2, 
-                                                               markerfacecolor='#F44336', alpha=0.8, zorder=10)
-                                                        # Overlay warning glyph
-                                                        ax.text(norm_x, norm_y, '⚠', color='white', fontsize=10,
-                                                                ha='center', va='center', zorder=11)
-                                                        
-                                                        # Add annotation
-                                                        warning_types = warning_locations[comp_id]
-                                                        warning_text = "\n".join([w.replace("_", " ").title() for w in warning_types])
-                                                        ax.annotate(warning_text, (norm_x, norm_y), 
-                                                                   xytext=(10, 10), textcoords='offset points',
-                                                                   bbox=dict(boxstyle='round,pad=0.5', facecolor='#FFEBEE', 
-                                                                            edgecolor='#F44336', linewidth=2),
-                                                                   fontsize=8, color='#C62828', zorder=12)
-                                        
-                                        ax.set_aspect('equal')
-                                        ax.grid(True, alpha=0.3)
-                                        title = "DXF Preview (Normalized to Origin)"
-                                        if warning_locations:
-                                            title += f" - {len(warning_locations)} Warning(s) Shown"
-                                        ax.set_title(title, fontsize=14, fontweight='bold')
-                                        ax.set_xlabel('X (mm)', fontsize=12)
-                                        ax.set_ylabel('Y (mm)', fontsize=12)
-                                        width = maxx - minx
-                                        height = maxy - miny
-                                        stats_text = f"Dimensions: {width:.2f} × {height:.2f} mm\nObjects: {len(polys)}"
-                                        if warning_locations:
-                                            stats_text += f"\n⚠️ Warnings: {len(warning_locations)}"
-                                        ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=10,
-                                                verticalalignment='top', bbox=dict(boxstyle="round,pad=0.5", facecolor='lightblue', alpha=0.8))
-                                        st.pyplot(fig, clear_figure=True)
-                                        plt.close(fig)
-                            except Exception as e:
-                                st.warning(f"Preview unavailable: {e}")
-                        
-                        with preview_tab2:
-                            st.markdown("**Key Statistics**")
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.write(f"**Total Objects:** {stats.get('total_objects', 0)}")
-                                st.write(f"**Selected:** {stats.get('selected_count', 0)}")
-                                st.write(f"**Operable:** {stats.get('operable_objects', 0)}")
-                            with col2:
-                                st.write(f"**Total Area:** {stats.get('total_area_mm2', 0):,.2f} mm²")
-                                st.write(f"**Operable Area:** {stats.get('operable_area_mm2', 0):,.2f} mm²")
-                                st.write(f"**Total Perimeter:** {stats.get('total_perimeter_mm', 0) / 1000:.2f} m")
-                            with col3:
-                                area_dist = stats.get("area_distribution", {})
-                                st.write(f"**Zero Area:** {area_dist.get('zero', 0)}")
-                                st.write(f"**Tiny (<1 mm²):** {area_dist.get('tiny_lt1', 0)}")
-                                st.write(f"**Large (≥100 mm²):** {area_dist.get('large_ge100', 0)}")
-                        
-                        # Recommendations with Editable Actions
-                        st.markdown("### ⚠️ Warnings & Recommendations (Editable)")
-                        warnings = recs.get("warnings", [])
-                        info_items = recs.get("info", [])
-                        
-                        # Create editable recommendations
-                        if "editor_recommendations" not in st.session_state:
-                            st.session_state["editor_recommendations"] = {
-                                "warnings": {w.get("type"): {"enabled": True, "data": w} for w in warnings},
-                                "info": {i.get("type"): {"enabled": True, "data": i} for i in info_items}
-                            }
-                        
-                        # Display warnings with checkboxes to enable/disable fixes
-                        # Style warnings in red
-                        st.markdown("""
-                        <style>
-                        .warning-box {
-                            background-color: #FFEBEE;
-                            border-left: 4px solid #F44336;
-                            padding: 10px;
-                            margin: 10px 0;
-                            border-radius: 4px;
-                        }
-                        .warning-text {
-                            color: #C62828;
-                            font-weight: 500;
-                        }
-                        </style>
-                        """, unsafe_allow_html=True)
-                        
-                        for warning in warnings:
-                            w_type = warning.get("type", "unknown")
-                            rec_state = st.session_state["editor_recommendations"]["warnings"].get(w_type, {"enabled": True, "data": warning})
-                            warning_data = rec_state.get("data", warning)
-                            
-                            # Display warning in red-styled container
-                            with st.container():
-                                st.markdown(f'<div class="warning-box">', unsafe_allow_html=True)
-                                
-                                col1, col2 = st.columns([5, 1])
-                                with col1:
-                                    # Warning type and enable/disable
-                                    warning_type_label = f"**{warning_data.get('type', 'Warning')}**"
-                                    enabled = st.checkbox(
-                                        warning_type_label,
-                                        value=rec_state.get("enabled", True),
-                                        key=f"rec_warn_enable_{w_type}"
-                                    )
-                                    
-                                    # Editable message field
-                                    current_message = warning_data.get("message", "")
-                                    edited_message = st.text_input(
-                                        "Warning Message:",
-                                        value=current_message,
-                                        key=f"rec_warn_msg_{w_type}"
-                                    )
-                                    
-                                    # Editable action field
-                                    current_action = warning_data.get("action", "")
-                                    edited_action = st.text_input(
-                                        "Action/Recommendation:",
-                                        value=current_action,
-                                        key=f"rec_warn_action_{w_type}"
-                                    )
-                                    
-                                    # Update warning data if edited
-                                    if edited_message != current_message or edited_action != current_action:
-                                        warning_data = warning_data.copy()
-                                        warning_data["message"] = edited_message
-                                        warning_data["action"] = edited_action
-                                    
-                                    # Auto-fix buttons
-                                    if enabled:
-                                        fix_col1, fix_col2, fix_col3 = st.columns([1, 1, 2])
-                                        with fix_col1:
-                                            if w_type == "zero_area" and st.button("🔧 Remove Zero-Area", key=f"fix_zero_{w_type}"):
-                                                removed = _apply_fix_zero_area(doc, report)
-                                                st.success(f"Zero-area objects removed! ({removed} objects)")
-                                                st.rerun()
-                                        with fix_col2:
-                                            if w_type == "too_many_tiny" and st.button("🔧 Filter Tiny", key=f"fix_tiny_{w_type}"):
-                                                removed = _apply_fix_tiny_objects(doc, report)
-                                                st.success(f"Tiny objects filtered! ({removed} objects)")
-                                                st.rerun()
-                                with col2:
-                                    if enabled:
-                                        st.markdown(f"⚠️ **{warning_data.get('count', 0)}**")
-                                
-                                st.markdown('</div>', unsafe_allow_html=True)
-                                
-                                # Store updated warning data
-                                st.session_state["editor_recommendations"]["warnings"][w_type] = {
-                                    "enabled": enabled,
-                                    "data": warning_data
-                                }
-                                st.divider()
-
-                        # Sync edited warnings back into AI analysis recommendations for downstream uses (preview/export)
-                        try:
-                            updated_list = []
-                            warn_state = st.session_state.get("editor_recommendations", {}).get("warnings", {})
-                            for w in warnings:
-                                key = w.get("type", "unknown")
-                                if key in warn_state and isinstance(warn_state[key], dict):
-                                    updated_list.append(dict(warn_state[key].get("data", w)))
-                                else:
-                                    updated_list.append(w)
-                            # Write back to local structures and session for persistence
-                            recs["warnings"] = updated_list
-                            ai_analysis["recommendations"]["warnings"] = updated_list
-                            st.session_state["_editor_ai_analysis"] = ai_analysis
-                        except Exception:
-                            pass
-                        
-                        # Display info items
-                        for info_item in info_items:
-                            i_type = info_item.get("type", "unknown")
-                            rec_state = st.session_state["editor_recommendations"]["info"].get(i_type, {"enabled": True, "data": info_item})
-                            
-                            enabled = st.checkbox(
-                                f"**{info_item.get('type', 'Info')}**: {info_item.get('message', '')}",
-                                value=rec_state["enabled"],
-                                key=f"rec_info_{i_type}"
-                            )
-                            st.caption(f"*Action*: {info_item.get('action', '')}")
-                            
-                            st.session_state["editor_recommendations"]["info"][i_type] = {
-                                "enabled": enabled,
-                                "data": info_item
-                            }
-                            st.divider()
-                        
-                        # Apply All Enabled Fixes Button
-                        enabled_count = sum(1 for w in st.session_state["editor_recommendations"]["warnings"].values() if w["enabled"])
-                        if enabled_count > 0:
-                            if st.button("🔧 Apply All Enabled Fixes", type="primary", key="apply_all_fixes"):
-                                with st.spinner("Applying fixes..."):
-                                    fixes_applied = []
-                                    for w_type, w_data in st.session_state["editor_recommendations"]["warnings"].items():
-                                        if w_data["enabled"]:
-                                            if w_type == "zero_area":
-                                                removed = _apply_fix_zero_area(doc, report)
-                                                fixes_applied.append(f"Removed {removed} zero-area objects")
-                                            elif w_type == "too_many_tiny":
-                                                removed = _apply_fix_tiny_objects(doc, report)
-                                                fixes_applied.append(f"Filtered {removed} tiny objects")
-                                    if fixes_applied:
-                                        st.success(f"Applied fixes: {', '.join(fixes_applied)}. Save DXF to persist changes.")
-                                        st.rerun()
-                        
-                        # Download CSV (with recommendation selections)
-                        base_csv_path = st.session_state.get("_editor_analysis_csv")
-                        if base_csv_path and os.path.exists(base_csv_path):
-                            # Create enhanced CSV with recommendation selections
-                            enhanced_csv_path = _create_enhanced_csv_with_recommendations(
-                                base_csv_path,
-                                ai_analysis,
-                                readiness_score,
-                                st.session_state.get("editor_recommendations", {})
-                            )
-                            if enhanced_csv_path and os.path.exists(enhanced_csv_path):
-                                with open(enhanced_csv_path, "rb") as fh:
-                                    st.download_button(
-                                        "📥 Download Analysis CSV (with Recommendations)",
-                                        data=fh.read(),
-                                        file_name=os.path.basename(enhanced_csv_path),
-                                        mime="text/csv"
-                                    )
-                            else:
-                                # Fallback to original CSV
-                                with open(base_csv_path, "rb") as fh:
-                                    st.download_button(
-                                        "📥 Download Analysis CSV",
-                                        data=fh.read(),
-                                        file_name=os.path.basename(base_csv_path),
-                                        mime="text/csv"
-                                    )
-                    else:
-                        st.error(f"AI Analysis failed: {ai_analysis.get('error', 'Unknown error')}")
+                # Download button
+                if os.path.exists(out_path):
+                    with open(out_path, "rb") as f:
+                        st.download_button(
+                            "📥 Download Edited DXF",
+                            data=f.read(),
+                            file_name=os.path.basename(out_path),
+                            mime="application/dxf",
+                            key="download_dxf_btn"
+                        )
             except Exception as e:
-                from wjp_analyser.web.components import render_error, create_dxf_error_actions
-                render_error(
-                    e,
-                    user_message="AI Analysis unavailable. Please check your DXF file and try again.",
-                    actions=create_dxf_error_actions(str(analysis_dxf_path)),
-                    show_traceback=False,
-                )
-
-        # Measure / Validate
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            a = st.text_input("Point A (x,y)", value="0,0")
-            b = st.text_input("Point B (x,y)", value="10,0")
-            if st.button("Distance A→B"):
-                try:
-                    ax, ay = [float(v) for v in a.split(",")]
-                    bx, by = [float(v) for v in b.split(",")]
-                    st.info(f"Distance: {distance((ax,ay),(bx,by)):.3f} mm")
-                except Exception:
-                    st.error("Invalid input")
-        with m2:
-            kerf = st.number_input("Kerf preview (mm)", value=1.1)
-            st.write(f"Kerf value: {kerf_preview_value(kerf)} mm")
-        with m3:
-            if st.button("Check Min Radius (selected)"):
-                issues = []
-                for e in entities:
-                    if e.dxf.handle in st.session_state["state"]["selected"]:
-                        ok, meta = check_min_radius(e, min_r=2.0)
-                        if not ok:
-                            issues.append((e.dxf.handle, meta))
-                if issues:
-                    st.warning(f"Violations: {issues}")
-                else:
-                    st.success("No radius violations (or not applicable).")
-
-        # Save / Export
-        st.subheader("Save / Export")
-        output_dir = Path("output") / "dxf_editor"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        out_path = st.text_input("Save as", value=str(output_dir / "edited_output_v2.dxf"))
-        if st.button("💾 Save DXF"):
-            save_dxf(doc, out_path)
-            with open(out_path, "rb") as f:
-                st.download_button("Download Edited DXF", data=f, file_name=os.path.basename(out_path))
-
-        # Waterjet viability pipeline
-        with st.expander("Waterjet Clean-up (auto-scale, validate, export)", expanded=False):
-            st.caption("Scale geometry to default frame, detect non-operable objects (tiny segments, tight corners, spacing), and export a clean DXF.")
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                frame_w = st.number_input("Target width (mm)", value=1000.0, min_value=10.0, step=10.0)
-            with c2:
-                frame_h = st.number_input("Target height (mm)", value=1000.0, min_value=10.0, step=10.0)
-            with c3:
-                autoscale = st.checkbox("Scale to target size", value=True)
-            origin_zero = st.checkbox("Normalize origin to (0,0)", value=True)
-
-            v1, v2, v3 = st.columns(3)
-            with v1:
-                min_segment = st.number_input("Min segment (mm)", value=1.0, min_value=0.01, step=0.1)
-            with v2:
-                min_corner_radius = st.number_input("Min corner radius (mm)", value=2.0, min_value=0.0, step=0.1)
-            with v3:
-                min_spacing = st.number_input("Min spacing (mm)", value=3.0, min_value=0.0, step=0.1)
-
-            def _analyze_polygons(dxf_doc) -> tuple[list[dict], dict]:
-                from wjp_analyser.nesting.dxf_extractor import extract_polygons
-                temp_dir = Path("output") / "editor_clean"
-                temp_dir.mkdir(parents=True, exist_ok=True)
-                temp_path = temp_dir / "clean_src.dxf"
-                save_dxf(dxf_doc, str(temp_path))
-                polys = extract_polygons(str(temp_path))
-                return polys, {"path": str(temp_path)}
-
-            def _scale_points(pts: list[tuple[float, float]], target_w: float, target_h: float, to_zero: bool = True) -> list[tuple[float, float]]:
-                if not pts:
-                    return pts
-                xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
-                minx, maxx = min(xs), max(xs)
-                miny, maxy = min(ys), max(ys)
-                w = max(1e-9, maxx - minx); h = max(1e-9, maxy - miny)
-                sx = target_w / w; sy = target_h / h; s = min(sx, sy)
-                if to_zero:
-                    # Shift so min corner is (0,0)
-                    return [((x - minx) * s, (y - miny) * s) for (x, y) in pts]
-                else:
-                    cx, cy = (minx + maxx) / 2.0, (miny + maxy) / 2.0
-                    return [((x - cx) * s + target_w / 2.0, (y - cy) * s + target_h / 2.0) for (x, y) in pts]
-
-            def _min_segment_len(pts: list[tuple[float, float]]) -> float:
-                import math
-                if len(pts) < 2:
-                    return 0.0
-                m = float("inf")
-                for i in range(len(pts)):
-                    x1, y1 = pts[i]
-                    x2, y2 = pts[(i + 1) % len(pts)]
-                    d = math.hypot(x2 - x1, y2 - y1)
-                    if d < m:
-                        m = d
-                return m if m != float("inf") else 0.0
-
-            def _min_corner_radius_approx(pts: list[tuple[float, float]]) -> float:
-                # Approximate by circumradius of consecutive triplets
-                import math
-                if len(pts) < 3:
-                    return 0.0
-                def circumradius(a, b, c):
-                    ax, ay = a; bx, by = b; cx, cy = c
-                    ab = math.hypot(bx - ax, by - ay)
-                    bc = math.hypot(cx - bx, cy - by)
-                    ca = math.hypot(ax - cx, ay - cy)
-                    s = (ab + bc + ca) / 2.0
-                    area2 = max(1e-12, s * (s - ab) * (s - bc) * (s - ca))
-                    area = math.sqrt(area2)
-                    R = (ab * bc * ca) / (4.0 * area) if area > 0 else float("inf")
-                    return R
-                rmin = float("inf")
-                for i in range(len(pts)):
-                    a = pts[i - 1]
-                    b = pts[i]
-                    c = pts[(i + 1) % len(pts)]
-                    r = circumradius(a, b, c)
-                    if r < rmin:
-                        rmin = r
-                return 0.0 if rmin == float("inf") else rmin
-
-            def _min_spacing_between(polys_pts: list[list[tuple[float, float]]]) -> float:
-                try:
-                    from shapely.geometry import Polygon
-                    from shapely.ops import unary_union
-                    if len(polys_pts) < 2:
-                        return float("inf")
-                    geoms = [Polygon(pts) for pts in polys_pts if len(pts) >= 3]
-                    m = float("inf")
-                    for i in range(len(geoms)):
-                        for j in range(i + 1, len(geoms)):
-                            try:
-                                d = geoms[i].distance(geoms[j])
-                                if d < m:
-                                    m = d
-                            except Exception:
-                                continue
-                    return m
-                except Exception:
-                    return float("inf")
-
-            if st.button("Analyze for Waterjet", type="primary"):
-                polys, meta = _analyze_polygons(doc)
-                if not polys:
-                    st.error("No polygons extracted.")
-                else:
-                    # Prepare points and optionally scale
-                    pts_list = [p.get("points") or [] for p in polys]
-                    if autoscale:
-                        # Compute combined bbox and scale all together
-                        # Flatten to get bbox
-                        all_pts = [pt for pts in pts_list for pt in pts]
-                        if all_pts:
-                            # scale each set with shared factor
-                            xs = [p[0] for p in all_pts]; ys = [p[1] for p in all_pts]
-                            minx, maxx = min(xs), max(xs); miny, maxy = min(ys), max(ys)
-                            w = max(1e-9, maxx - minx); h = max(1e-9, maxy - miny)
-                            s = min(frame_w / w, frame_h / h)
-                            if origin_zero:
-                                pts_list = [[((x - minx) * s, (y - miny) * s) for (x, y) in pts] for pts in pts_list]
-                            else:
-                                cx, cy = (minx + maxx) / 2.0, (miny + maxy) / 2.0
-                                pts_list = [[((x - cx) * s + frame_w / 2.0, (y - cy) * s + frame_h / 2.0) for (x, y) in pts] for pts in pts_list]
-
-                    # Validate each polygon
-                    invalid_idx = []
-                    for idx, pts in enumerate(pts_list):
-                        if _min_segment_len(pts) < min_segment:
-                            invalid_idx.append(idx); continue
-                        if min_corner_radius > 0 and _min_corner_radius_approx(pts) < min_corner_radius:
-                            invalid_idx.append(idx); continue
-                    spacing = _min_spacing_between([p for i, p in enumerate(pts_list) if i not in invalid_idx])
-                    if spacing < min_spacing:
-                        # Mark smallest shapes until spacing improves (greedy)
-                        sizes = [(i, len(pts_list[i])) for i in range(len(pts_list)) if i not in invalid_idx]
-                        sizes.sort(key=lambda t: t[1])
-                        for i, _n in sizes:
-                            invalid_idx.append(i)
-                            spacing = _min_spacing_between([p for j, p in enumerate(pts_list) if j not in invalid_idx])
-                            if spacing >= min_spacing:
-                                break
-
-                    st.info(f"Detected {len(pts_list)} objects. Marked non-operable: {len(invalid_idx)}. Spacing after removal: {spacing if spacing != float('inf') else 0:.2f} mm")
-
-                    # Store for export
-                    st.session_state["wjp_clean_pts_list"] = pts_list
-                    st.session_state["wjp_clean_invalid"] = set(invalid_idx)
-
-            if st.session_state.get("wjp_clean_pts_list"):
-                pts_list = st.session_state["wjp_clean_pts_list"]
-                invalid_idx = st.session_state.get("wjp_clean_invalid", set())
-                if st.button("Export Clean DXF", type="primary"):
-                    try:
-                        from wjp_analyser.web.api_client_wrapper import write_layered_dxf_from_report
-                        from wjp_analyser.services.layered_dxf_service import write_layered_dxf_from_components
-                        
-                        # Convert pts_list to component format for service
-                        components = []
-                        for i, pts in enumerate(pts_list):
-                            if i in invalid_idx:
-                                continue
-                            if len(pts) >= 2:
-                                # Convert points to [x, y] format
-                                points = [[float(p[0]), float(p[1])] for p in pts]
-                                components.append({
-                                    "points": points,
-                                    "layer": "0",  # Default layer for clean export
-                                    "id": f"clean_{i}"
-                                })
-                        
-                        if components:
-                            clean_path = output_dir / "clean_waterjet_ready.dxf"
-                            write_layered_dxf_from_components(components, str(clean_path))
-                            with open(clean_path, "rb") as f:
-                                st.download_button("Download Clean DXF", data=f.read(), file_name=clean_path.name)
-                        else:
-                            st.warning("No valid components to export")
-                    except Exception as ex:
-                        st.error(f"Clean export failed: {ex}")
-                        import traceback
-                        st.code(traceback.format_exc())
+                st.error(f"Failed to save DXF: {e}")
 
 
 if __name__ == "__main__":
     main()
-
-

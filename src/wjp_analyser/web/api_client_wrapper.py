@@ -221,3 +221,6 @@ summarize_for_quote = summarize_for_quote
 
 
 
+
+
+

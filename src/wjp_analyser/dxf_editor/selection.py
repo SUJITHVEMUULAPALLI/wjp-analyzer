@@ -40,6 +40,21 @@ def pick_entity(entities: Iterable, click_x: float, click_y: float, tol: float =
             cx, cy = _xy(e.dxf.center)
             if abs(math.hypot(click_x - cx, click_y - cy) - float(e.dxf.radius)) <= tol:
                 return e
+        elif et == "ARC":
+            cx, cy = _xy(e.dxf.center)
+            r = float(e.dxf.radius)
+            dist = math.hypot(click_x - cx, click_y - cy)
+            if abs(dist - r) <= tol:
+                # Check if point is within arc angle range
+                angle = math.degrees(math.atan2(click_y - cy, click_x - cx))
+                if angle < 0:
+                    angle += 360
+                start_angle = e.dxf.start_angle
+                end_angle = e.dxf.end_angle
+                if end_angle < start_angle:
+                    end_angle += 360
+                if start_angle <= angle <= end_angle or (start_angle <= angle + 360 <= end_angle):
+                    return e
         elif et == "LWPOLYLINE":
             pts = list(e.get_points())
             if len(pts) >= 2:
@@ -48,6 +63,25 @@ def pick_entity(entities: Iterable, click_x: float, click_y: float, tol: float =
                     x2, y2 = float(p2[0]), float(p2[1])
                     if is_point_near_line(click_x, click_y, x1, y1, x2, y2, tol):
                         return e
+        elif et == "POLYLINE":
+            try:
+                pts = [(v.dxf.location.x, v.dxf.location.y) for v in e.vertices]
+                if len(pts) >= 2:
+                    for p1, p2 in zip(pts, pts[1:]):
+                        if is_point_near_line(click_x, click_y, p1[0], p1[1], p2[0], p2[1], tol):
+                            return e
+            except Exception:
+                pass
+        elif et == "SPLINE":
+            # Approximate spline and check proximity
+            try:
+                coords = [(p[0], p[1]) for p in e.flattening(distance=0.1)]
+                if len(coords) >= 2:
+                    for p1, p2 in zip(coords, coords[1:]):
+                        if is_point_near_line(click_x, click_y, p1[0], p1[1], p2[0], p2[1], tol):
+                            return e
+            except Exception:
+                pass
     return None
 
 

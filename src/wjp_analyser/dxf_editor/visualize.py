@@ -47,23 +47,146 @@ def plot_entities(
         except Exception:
             pass
         
-        if e.dxftype() == "LINE":
-            sx, sy = e.dxf.start[0], e.dxf.start[1]
-            ex, ey = e.dxf.end[0], e.dxf.end[1]
-            coords = [(sx, sy), (ex, ey)]
-        elif e.dxftype() == "CIRCLE":
-            c = e.dxf.center
-            cx, cy = (c[0], c[1]) if isinstance(c, (list, tuple)) else (float(c.x), float(c.y))
-            r = e.dxf.radius
-            # Approximate circle with points for normalization
-            for angle in range(0, 360, 15):
-                rad = math.radians(angle)
-                coords.append((cx + r * math.cos(rad), cy + r * math.sin(rad)))
-        elif e.dxftype() == "LWPOLYLINE":
-            raw_pts = list(e.get_points())
-            coords = [(p[0], p[1]) for p in raw_pts if isinstance(p, (list, tuple)) and len(p) >= 2]
+        try:
+            entity_type = e.dxftype()
+            if entity_type == "LINE":
+                try:
+                    sx, sy = e.dxf.start[0], e.dxf.start[1]
+                    ex, ey = e.dxf.end[0], e.dxf.end[1]
+                    coords = [(float(sx), float(sy)), (float(ex), float(ey))]
+                except Exception:
+                    pass
+            elif entity_type == "CIRCLE":
+                try:
+                    c = e.dxf.center
+                    if isinstance(c, (list, tuple)):
+                        cx, cy = float(c[0]), float(c[1])
+                    else:
+                        cx, cy = float(c.x), float(c.y)
+                    r = float(e.dxf.radius)
+                    # Approximate circle with points for normalization
+                    for angle in range(0, 360, 15):
+                        rad = math.radians(angle)
+                        coords.append((cx + r * math.cos(rad), cy + r * math.sin(rad)))
+                except Exception:
+                    pass
+            elif entity_type == "ARC":
+                try:
+                    c = e.dxf.center
+                    if isinstance(c, (list, tuple)):
+                        cx, cy = float(c[0]), float(c[1])
+                    else:
+                        cx, cy = float(c.x), float(c.y)
+                    r = float(e.dxf.radius)
+                    start_angle = math.radians(float(e.dxf.start_angle))
+                    end_angle = math.radians(float(e.dxf.end_angle))
+                    if end_angle < start_angle:
+                        end_angle += 2 * math.pi
+                    # Approximate arc with points
+                    num_segments = max(8, int(abs(end_angle - start_angle) * 180 / math.pi))
+                    for i in range(num_segments + 1):
+                        angle = start_angle + (end_angle - start_angle) * i / num_segments
+                        coords.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+                except Exception:
+                    pass
+            elif entity_type == "LWPOLYLINE":
+                try:
+                    raw_pts = list(e.get_points())
+                    coords = []
+                    for p in raw_pts:
+                        if isinstance(p, (list, tuple)) and len(p) >= 2:
+                            try:
+                                coords.append((float(p[0]), float(p[1])))
+                            except (ValueError, TypeError):
+                                continue
+                except Exception:
+                    pass
+            elif entity_type == "POLYLINE":
+                # Heavy polyline - extract vertices
+                try:
+                    coords = []
+                    for v in e.vertices:
+                        try:
+                            loc = v.dxf.location
+                            coords.append((float(loc.x), float(loc.y)))
+                        except Exception:
+                            continue
+                except Exception:
+                    try:
+                        # Alternative method
+                        raw_pts = list(e.get_points("xy"))
+                        coords = []
+                        for p in raw_pts:
+                            if isinstance(p, (list, tuple)) and len(p) >= 2:
+                                try:
+                                    coords.append((float(p[0]), float(p[1])))
+                                except (ValueError, TypeError):
+                                    continue
+                    except Exception:
+                        pass
+            elif entity_type == "SPLINE":
+                # Convert spline to points using flattening (matching dxf_io.py pattern)
+                try:
+                    # flattening() returns Point objects or tuples
+                    flattened = list(e.flattening(distance=0.1))
+                    coords = []
+                    prev_point = None
+                    for p in flattened:
+                        try:
+                            # Handle Point objects with .x and .y attributes
+                            if hasattr(p, 'x') and hasattr(p, 'y'):
+                                x, y = float(p.x), float(p.y)
+                            # Handle tuples/lists
+                            elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                                x, y = float(p[0]), float(p[1])
+                            # Handle Point3D or similar
+                            elif hasattr(p, '__getitem__'):
+                                x, y = float(p[0]), float(p[1])
+                            else:
+                                continue
+                            
+                            # Avoid duplicates (matching dxf_io.py pattern)
+                            if prev_point is None or (x, y) != prev_point:
+                                coords.append((x, y))
+                                prev_point = (x, y)
+                        except (ValueError, TypeError, AttributeError, IndexError):
+                            continue
+                except Exception:
+                    try:
+                        # Alternative: use construction tool
+                        tool = e.construction_tool()
+                        approx = list(tool.approximate(120))
+                        coords = []
+                        for p in approx:
+                            try:
+                                if hasattr(p, 'x') and hasattr(p, 'y'):
+                                    coords.append((float(p.x), float(p.y)))
+                                elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                                    coords.append((float(p[0]), float(p[1])))
+                                elif hasattr(p, '__getitem__'):
+                                    coords.append((float(p[0]), float(p[1])))
+                            except (ValueError, TypeError, AttributeError, IndexError):
+                                continue
+                    except Exception:
+                        # Last resort: try approximate method directly
+                        try:
+                            approx = list(e.approximate(segments=120))
+                            coords = []
+                            for p in approx:
+                                try:
+                                    if hasattr(p, 'x') and hasattr(p, 'y'):
+                                        coords.append((float(p.x), float(p.y)))
+                                    elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                                        coords.append((float(p[0]), float(p[1])))
+                                except (ValueError, TypeError, AttributeError):
+                                    continue
+                        except Exception:
+                            pass
+        except Exception:
+            # Skip entities that fail to process
+            continue
         
-        if coords:
+        if coords and len(coords) > 0:
             all_coords.extend(coords)
             entity_data.append((e, coords, handle))
     
@@ -72,6 +195,18 @@ def plot_entities(
     if normalize_to_origin and all_coords:
         min_x = min(p[0] for p in all_coords)
         min_y = min(p[1] for p in all_coords)
+    
+    # Check if we have any entities to render
+    if not entity_data:
+        # Return empty plot with message
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.text(0.5, 0.5, 'No entities to display', 
+                horizontalalignment='center', verticalalignment='center',
+                transform=ax.transAxes, fontsize=14)
+        ax.set_title("DXF Preview - No Entities", fontsize=14, fontweight='bold')
+        ax.set_xlabel('X (mm)', fontsize=12)
+        ax.set_ylabel('Y (mm)', fontsize=12)
+        return fig
     
     # Set up plot
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -147,7 +282,8 @@ def plot_entities(
                 xs = [p[0] for p in coords]
                 ys = [p[1] for p in coords]
                 # Check if closed
-                if len(coords) > 2 and coords[0] == coords[-1]:
+                is_closed = len(coords) > 2 and (coords[0] == coords[-1] or getattr(e, "closed", False))
+                if is_closed:
                     if has_warning:
                         # Highlight with warning color
                         ax.fill(xs, ys, color="#FFEBEE", alpha=alpha*0.2, edgecolor=color, linewidth=line_width)
@@ -158,6 +294,52 @@ def plot_entities(
                 
                 if has_warning and handle:
                     # Store centroid for warning marker
+                    center_x = sum(xs) / len(xs)
+                    center_y = sum(ys) / len(ys)
+                    warning_centers.append((center_x, center_y, warnings[handle]))
+        elif e.dxftype() == "ARC":
+            if coords:
+                xs = [p[0] for p in coords]
+                ys = [p[1] for p in coords]
+                ax.plot(xs, ys, color=color, linewidth=line_width, alpha=alpha)
+                if has_warning and handle:
+                    center_x = sum(xs) / len(xs)
+                    center_y = sum(ys) / len(ys)
+                    warning_centers.append((center_x, center_y, warnings[handle]))
+        elif e.dxftype() == "POLYLINE":
+            if coords:
+                xs = [p[0] for p in coords]
+                ys = [p[1] for p in coords]
+                # Check if closed
+                is_closed = len(coords) > 2 and (coords[0] == coords[-1] or getattr(e, "is_closed", False))
+                if is_closed:
+                    if has_warning:
+                        ax.fill(xs, ys, color="#FFEBEE", alpha=alpha*0.2, edgecolor=color, linewidth=line_width)
+                    else:
+                        ax.fill(xs, ys, color=color, alpha=alpha*0.3, edgecolor=color, linewidth=line_width)
+                else:
+                    ax.plot(xs, ys, color=color, linewidth=line_width, alpha=alpha)
+                if has_warning and handle:
+                    center_x = sum(xs) / len(xs)
+                    center_y = sum(ys) / len(ys)
+                    warning_centers.append((center_x, center_y, warnings[handle]))
+        elif e.dxftype() == "SPLINE":
+            if coords and len(coords) >= 2:
+                xs = [p[0] for p in coords]
+                ys = [p[1] for p in coords]
+                # Check if closed (first and last points are very close)
+                is_closed = len(coords) > 2 and math.hypot(xs[0] - xs[-1], ys[0] - ys[-1]) < 0.01
+                if is_closed:
+                    # Close the spline for proper rendering
+                    xs.append(xs[0])
+                    ys.append(ys[0])
+                    if has_warning:
+                        ax.fill(xs, ys, color="#FFEBEE", alpha=alpha*0.2, edgecolor=color, linewidth=line_width)
+                    else:
+                        ax.fill(xs, ys, color=color, alpha=alpha*0.3, edgecolor=color, linewidth=line_width)
+                else:
+                    ax.plot(xs, ys, color=color, linewidth=line_width, alpha=alpha, linestyle='-')
+                if has_warning and handle:
                     center_x = sum(xs) / len(xs)
                     center_y = sum(ys) / len(ys)
                     warning_centers.append((center_x, center_y, warnings[handle]))

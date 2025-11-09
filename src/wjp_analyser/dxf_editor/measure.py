@@ -17,11 +17,33 @@ def bbox_of_entity(e):
             cx, cy = e.dxf.center
             r = e.dxf.radius
             return (cx - r, cy - r, cx + r, cy + r)
+        if e.dxftype() == "ARC":
+            cx, cy = e.dxf.center
+            r = e.dxf.radius
+            # Approximate arc bbox (conservative estimate)
+            return (cx - r, cy - r, cx + r, cy + r)
         if e.dxftype() == "LWPOLYLINE":
             pts = list(e.get_points())
             xs = [p[0] for p in pts]
             ys = [p[1] for p in pts]
             return (min(xs), min(ys), max(xs), max(ys))
+        if e.dxftype() == "POLYLINE":
+            try:
+                pts = [(v.dxf.location.x, v.dxf.location.y) for v in e.vertices]
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
+                return (min(xs), min(ys), max(xs), max(ys))
+            except Exception:
+                return (0, 0, 0, 0)
+        if e.dxftype() == "SPLINE":
+            try:
+                coords = [(p[0], p[1]) for p in e.flattening(distance=0.1)]
+                if coords:
+                    xs = [p[0] for p in coords]
+                    ys = [p[1] for p in coords]
+                    return (min(xs), min(ys), max(xs), max(ys))
+            except Exception:
+                pass
     return (0, 0, 0, 0)
 
 

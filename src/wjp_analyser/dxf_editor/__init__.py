@@ -13,5 +13,6 @@ from .measure import distance, bbox_of_entity, bbox_size, polyline_length  # noq
 from .validate import check_min_radius, kerf_preview_value  # noqa: F401
 from .repair import close_small_gaps, remove_duplicates  # noqa: F401
 from .session import load_session, save_session  # noqa: F401
+from .operation_executor import OperationExecutor  # noqa: F401
 
 
