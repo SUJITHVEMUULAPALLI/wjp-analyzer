@@ -4,7 +4,7 @@ import os
 import tempfile
 from typing import Dict, List
 from .dxf_utils import (
-    SESSION_DXF_KEY, SESSION_PATH_KEY, SESSION_EDIT_LOG, SESSION_LAYER_VIS, SESSION_SELECTED, SESSION_HISTORY,
+    SESSION_DXF_KEY, SESSION_PATH_KEY, SESSION_EDIT_LOG, SESSION_LAYER_VIS, SESSION_SELECTED, SESSION_HISTORY, SESSION_EDIT_COUNT,
     load_document, save_document, temp_copy, list_layers, entity_summary, delete_entities_by_handle
 )
 
@@ -18,6 +18,7 @@ def ensure_session_keys(st):
         (SESSION_EDIT_LOG, []),
         (SESSION_LAYER_VIS, {}),
         (SESSION_SELECTED, set()),
+        (SESSION_EDIT_COUNT, 0),
     ]:
         st.session_state.setdefault(k, default)
     
@@ -88,6 +89,8 @@ def get_entity_table(st) -> List[Dict]:
 
 
 def apply_delete(st, handles: List[str]) -> int:
+    from .dxf_reanalyze import increment_edit_count
+    
     doc = st.session_state.get(SESSION_DXF_KEY)
     if not doc or not handles:
         return 0
@@ -98,12 +101,15 @@ def apply_delete(st, handles: List[str]) -> int:
         history = st.session_state.get(SESSION_HISTORY)
         if history:
             history.record_batch("delete", handles, {})
+        # Increment edit count
+        increment_edit_count(st)
     return count
 
 
 def apply_transform(st, handles: List[str], operation: str, **params) -> int:
     """Apply a transformation to selected entities."""
     from .dxf_transform_service import transform_entities
+    from .dxf_reanalyze import increment_edit_count
     
     doc = st.session_state.get(SESSION_DXF_KEY)
     if not doc or not handles:
@@ -119,6 +125,9 @@ def apply_transform(st, handles: List[str], operation: str, **params) -> int:
         history = st.session_state.get(SESSION_HISTORY)
         if history:
             history.record_batch(operation, handles, params)
+        
+        # Increment edit count
+        increment_edit_count(st)
     
     return count
 

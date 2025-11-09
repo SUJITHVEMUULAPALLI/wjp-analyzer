@@ -8,9 +8,16 @@ from ezdxf.addons.drawing.svg import SVGBackend
 from ezdxf.addons.drawing.layout import Page
 
 
-def render_svg(doc, layer_visibility: Optional[Dict[str, bool]] = None) -> str:
+def render_svg(doc, layer_visibility: Optional[Dict[str, bool]] = None, 
+               include_grid: bool = False, grid_size: float = 10.0) -> str:
     """
     Render modelspace to SVG. Layers set False in `layer_visibility` are hidden.
+    
+    Args:
+        doc: DXF document
+        layer_visibility: Dictionary mapping layer names to visibility
+        include_grid: Whether to include grid overlay
+        grid_size: Grid spacing if grid is included
     """
     ctx = RenderContext(doc)
     if layer_visibility:
@@ -36,6 +43,11 @@ def render_svg(doc, layer_visibility: Optional[Dict[str, bool]] = None) -> str:
         except Exception:
             # Ultimate fallback: create minimal SVG
             svg_text = '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+    
+    # Add grid overlay if requested
+    if include_grid:
+        from .dxf_viewport import add_grid_overlay
+        svg_text = add_grid_overlay(svg_text, grid_size=grid_size)
     
     return svg_text
 

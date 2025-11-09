@@ -17,6 +17,9 @@ from wjp_analyser.web.modules.dxf_utils import (
 )
 from wjp_analyser.web.modules import dxf_editor_core as core
 from wjp_analyser.web.modules.dxf_renderer import render_svg
+from wjp_analyser.web.modules import dxf_export
+from wjp_analyser.web.modules.dxf_viewport import add_zoom_pan_controls
+from wjp_analyser.web.modules import dxf_reanalyze
 
 
 def safe_rerun():
@@ -74,6 +77,19 @@ with st.sidebar:
         vis[lname] = st.checkbox(lname, value=vis[lname])
 
     st.divider()
+    st.header("View Options")
+    
+    # Grid settings
+    show_grid = st.checkbox("Show Grid", value=st.session_state.get("show_grid", False), key="show_grid")
+    if show_grid:
+        grid_size = st.number_input("Grid Size (mm)", value=10.0, min_value=1.0, max_value=100.0, step=1.0, key="grid_size")
+    else:
+        grid_size = 10.0
+    
+    # Zoom/Pan controls
+    enable_zoom = st.checkbox("Enable Zoom/Pan", value=st.session_state.get("enable_zoom", True), key="enable_zoom")
+    
+    st.divider()
     st.header("Actions")
     
     # Undo/Redo buttons
@@ -99,6 +115,45 @@ with st.sidebar:
     
     st.divider()
     
+    # Export options
+    st.header("Export")
+    export_format = st.radio("Format", ["DXF", "SVG", "JSON", "All"], horizontal=True, key="export_format")
+    export_base = st.text_input("Export filename (no extension)", value=os.path.basename(working_path).replace(".dxf", "_export"))
+    export_dir = st.text_input("Export directory", value=os.path.dirname(working_path))
+    
+    if st.button("📤 Export", use_container_width=True):
+        try:
+            base_path = os.path.join(export_dir, export_base)
+            edit_log = st.session_state.get(SESSION_EDIT_LOG, [])
+            
+            if export_format == "DXF":
+                out_path = f"{base_path}.dxf"
+                result = dxf_export.export_dxf(doc, out_path, metadata={"export_date": str(os.path.getmtime(working_path))})
+                st.success(f"Exported: {result}")
+            elif export_format == "SVG":
+                out_path = f"{base_path}.svg"
+                result = dxf_export.export_svg(doc, out_path, layer_visibility=st.session_state[SESSION_LAYER_VIS],
+                                               include_grid=show_grid, grid_size=grid_size)
+                st.success(f"Exported: {result}")
+            elif export_format == "JSON":
+                out_path = f"{base_path}_metadata.json"
+                result = dxf_export.export_json(doc, out_path, edit_log=edit_log)
+                st.success(f"Exported: {result}")
+            elif export_format == "All":
+                results = dxf_export.export_all_formats(doc, base_path, 
+                                                        layer_visibility=st.session_state[SESSION_LAYER_VIS],
+                                                        edit_log=edit_log, include_grid=show_grid)
+                st.success(f"Exported all formats:")
+                for fmt, path in results.items():
+                    st.write(f"  - {fmt.upper()}: {path}")
+        except Exception as e:
+            st.error(f"Export failed: {e}")
+            import traceback
+            with st.expander("Error details"):
+                st.code(traceback.format_exc())
+    
+    st.divider()
+    
     # Save
     save_name = st.text_input("Save as (filename.dxf)", value=os.path.basename(working_path).replace(".dxf", "_edited.dxf"))
     save_dir = st.text_input("Save directory", value=os.path.dirname(working_path))
@@ -111,11 +166,22 @@ with st.sidebar:
             st.error(f"Save failed: {e}")
 
     st.divider()
+    
+    # Auto re-analyze warning
+    edit_count = dxf_reanalyze.get_edit_count(st)
+    if edit_count > 0:
+        st.caption(f"Edit Count: {edit_count}")
+        dxf_reanalyze.should_reanalyze(st, threshold=10, show_warning=True)
+        if dxf_reanalyze.create_reanalyze_button(st, threshold=10):
+            safe_rerun()
+    
+    st.divider()
     st.caption("Edit Log")
     if st.button("Clear Log"):
         st.session_state[SESSION_EDIT_LOG] = []
         if history:
             history.clear()
+        dxf_reanalyze.reset_edit_count(st)
     st.json(st.session_state.get(SESSION_EDIT_LOG, []))
 
 # Main layout: left table, right preview
@@ -224,16 +290,28 @@ with left:
 with right:
     st.subheader("Preview")
     try:
-        svg_text = render_svg(doc, layer_visibility=st.session_state[SESSION_LAYER_VIS])
-        # Render SVG in-page (native zoom via browser)
-        html(
-            f"""
-            <div style="width:100%;height:75vh;border:1px solid #ddd;overflow:auto;background:#fff">
-                {svg_text}
-            </div>
-            """,
-            height=600,
-        )
+        # Get grid settings from session state
+        show_grid = st.session_state.get("show_grid", False)
+        grid_size = st.session_state.get("grid_size", 10.0)
+        enable_zoom = st.session_state.get("enable_zoom", True)
+        
+        svg_text = render_svg(doc, layer_visibility=st.session_state[SESSION_LAYER_VIS],
+                             include_grid=show_grid, grid_size=grid_size)
+        
+        # Add zoom/pan controls if enabled
+        if enable_zoom:
+            svg_with_controls = add_zoom_pan_controls(svg_text)
+            html(svg_with_controls, height=600)
+        else:
+            # Render SVG in-page (native zoom via browser)
+            html(
+                f"""
+                <div style="width:100%;height:75vh;border:1px solid #ddd;overflow:auto;background:#fff">
+                    {svg_text}
+                </div>
+                """,
+                height=600,
+            )
     except Exception as e:
         st.error(f"Render error: {e}")
         import traceback

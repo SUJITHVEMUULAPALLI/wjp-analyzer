@@ -11,6 +11,7 @@ SESSION_EDIT_LOG = "wjp_edit_log"
 SESSION_LAYER_VIS = "wjp_layer_visibility"
 SESSION_SELECTED = "wjp_selected_handles"
 SESSION_HISTORY = "wjp_dxf_history_manager"
+SESSION_EDIT_COUNT = "wjp_edit_count"  # Track edits for auto re-analyze
 
 
 def load_document(path: str) -> ezdxf.EzDxfDrawing:
